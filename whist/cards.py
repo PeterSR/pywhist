@@ -68,3 +68,8 @@ class Card:
     @property
     def symbol(self):
         return f"{self.suit.symbol} {self.rank.symbol}"
+
+
+@dataclass
+class Deck:
+    cards: List[Card]
