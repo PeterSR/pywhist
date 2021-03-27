@@ -78,3 +78,10 @@ class GameStateView:
             hands[p] = Deck([Card.unknown] * num_cards)
 
         return hands
+
+    @property
+    def partners(self):
+        team_id = self.state.partners.team_id(self.player)
+        members = self.state.partners.team_members(team_id)
+        members.remove(self.player)
+        return tuple(members)

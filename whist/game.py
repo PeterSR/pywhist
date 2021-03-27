@@ -184,10 +184,15 @@ def display_board(view):
         print(f"{p.name:>6}: {hand}")
 
     print()
+    for p in view.partners:
+        print(f"Your partner: {p.name}")
+
+    print()
     print(f"Pile: {view.pile}")
     print()
     print(f"Your hand: {view.hand}")
     print()
+
 
 
 def parse_cli_action(s, actions):

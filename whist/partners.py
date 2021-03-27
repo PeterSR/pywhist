@@ -18,9 +18,13 @@ class Partners:
         if self.team_id_assignment is None:
             # Give each player their own team
             self.team_id_assignment = {
-                player: i
+                player: self.initial_team_assignment(i)
                 for i, player in enumerate(self.players)
             }
+
+    def initial_team_assignment(self, index):
+        offset = 1000
+        return index + offset
 
     def join(self, *players):
         if len(players) == 0:
