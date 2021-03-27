@@ -4,6 +4,7 @@ from .cards import Suit, Card, Deck
 from .gamestate import GameState, GameStateView, Player
 from .game_actions import BaseAction, PlayAction
 from .game_events import ActionTakenEvent, TrickTakenEvent
+from .game_ai import RandomAI
 
 
 @dataclass
@@ -210,33 +211,54 @@ if __name__ == "__main__":
 
     game = Game()
 
+    controllers = []
+    for player in game.state.players:
+        view = GameStateView(game.state, player)
+        ai = RandomAI(view)
+        controllers.append(ai)
+
+    controllers[0] = "human"
+
     game.deal()
 
     while not game.has_ended:
         player = game.current_player
-        view = GameStateView(game.state, player)
+        controller = controllers[game.state.turn]
 
-        print("=== Events: ===")
-        if len(game.state.events) > last_event_index:
-            for event in game.state.events[last_event_index:]:
-                print(event)
-            last_event_index = len(game.state.events)
+        if controller == "human":
 
-        print(f"=== Turn: {player.name} ===")
-        print()
+            view = GameStateView(game.state, player)
 
-        display_board(view)
+            print("=== Events: ===")
+            if len(game.state.events) > last_event_index:
+                for event in game.state.events[last_event_index:]:
+                    print(event)
+                last_event_index = len(game.state.events)
 
-        print("Actions:")
-        actions = game.valid_actions(player)
-        display_actions(actions)
+            print(f"=== Turn: {player.name} ===")
+            print()
 
-        while True:
-            s = input("> ")
-            action = parse_cli_action(s, actions)
-            if game.is_valid_action(player, action):
-                result = game.take_action(player, action)
-                if result:
-                    break
-            else:
-                print("Invalid action.")
+            display_board(view)
+
+            print("Actions:")
+            actions = game.valid_actions(player)
+            display_actions(actions)
+
+            while True:
+                s = input("> ")
+                if s == "tricks":
+                    print(game.state.tricks)
+                    print(game.state.trick_owner)
+                    continue
+
+                action = parse_cli_action(s, actions)
+                if game.is_valid_action(player, action):
+                    result = game.take_action(player, action)
+                    if result:
+                        break
+                else:
+                    print("Invalid action.")
+        else:
+            actions = game.valid_actions(player)
+            action = controller.pick_action(actions)
+            game.take_action(player, action)
