@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from .cards import Deck
 from .gamestate import GameState, GameStateView, Player
+from .game_actions import PlayAction
 
 
 @dataclass
@@ -48,15 +49,10 @@ class Game:
         for p in self.state.players:
             for _ in range(hand_size):
                 card = deck.cards.pop()
-                self.state.hands[p].cards.append(card)
+                self.state.hands[p].give(card, sort=False)
             self.state.hands[p].sort()
 
         self.state.kitty = deck
-
-        for p, h in self.state.hands.items():
-            print(f"Player: {p.name}")
-            print(f"- {h}")
-        print(self.state.kitty)
 
     @property
     def has_ended(self):
@@ -66,25 +62,57 @@ class Game:
     def current_player(self):
         return self.state.players[self.state.turn]
 
-    def valid_actions(self):
+    def valid_actions(self, player):
+        if player != self.current_player:
+            return []
+
+        hand = self.state.hands[player]
+
+        if len(self.state.pile) == 0:
+            return [PlayAction(card) for card in hand]
+
         return []
 
-    def is_valid_action(self, player, action):
+    def is_valid_action(self, player, action: PlayAction):
         if player != self.current_player:
             return False
 
-        return action in self.valid_actions()
-
+        return action in self.valid_actions(player)
 
 
 # --- CLI ---
 
-def parse_cli_action(action):
-    return True
+
+def display_board(view):
+    for p, hand in view.other_players.items():
+        print(f"{p.name:>6}: {hand}")
+
+    print()
+    print(f"Pile: {view.pile}")
+    print()
+    print(f"Your hand: {view.hand}")
+    print()
+
+
+def parse_cli_action(s, actions):
+    try:
+        index = int(s)
+    except ValueError:
+        return None
+
+    try:
+        return actions[index]
+    except IndexError:
+        return None
 
 
 def display_actions(actions):
-    pass
+    for i, action in enumerate(actions):
+        if isinstance(action, PlayAction):
+            s = action.card.symbol
+        else:
+            s = "?"
+        print(f"{i:>2}: {s}")
 
 
 if __name__ == "__main__":
@@ -98,15 +126,18 @@ if __name__ == "__main__":
         player = game.current_player
         view = GameStateView(game.state, player)
 
-        print(f"Turn: {player}")
-        print(f"Pile: {view.pile}")
-        print(f"Hand: {view.hand}")
+        print(f"=== Turn: {player.name} ===")
+        print()
+
+        display_board(view)
+
         print("Actions:")
-        display_actions(view.actions)
+        actions = game.valid_actions(player)
+        display_actions(actions)
 
         while True:
-            action = input("> ")
-            action = parse_cli_action(action)
+            s = input("> ")
+            action = parse_cli_action(s, actions)
             if game.is_valid_action(player, action):
                 game.take_action(player, action)
             else:

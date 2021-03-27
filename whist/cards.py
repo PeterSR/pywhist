@@ -166,5 +166,19 @@ class Deck:
     def shuffle(self):
         random.shuffle(self.cards)
 
+    def take(self, card: Card):
+        return self.cards.remove(card)
+
+    def give(self, card: Card, sort=True):
+        self.cards.append(card)
+        if sort:
+            self.sort()
+
+    def __len__(self):
+        return len(self.cards)
+
+    def __iter__(self):
+        return iter(self.cards)
+
     def __str__(self):
         return " ".join(c.symbol for c in self.cards)
