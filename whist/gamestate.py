@@ -1,12 +1,15 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 from .cards import Suit, Deck
 
 
-@dataclass
+PlayerID = int
+
+@dataclass(frozen=True)
 class Player:
-    pass
+    id: PlayerID
+    name: str
 
 
 
@@ -16,10 +19,11 @@ class Player:
 @dataclass
 class GameState:
     players: List[Player] = None
-    hands: dict = None
+    hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
     partner: list = None
-    deck: Deck = Deck.sorted()
+    kitty: Deck = Deck.empty()
+    pile: Deck = Deck.empty()
 
     # Index in players
     turn: int = 0

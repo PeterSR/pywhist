@@ -1,9 +1,36 @@
+import random
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List
 
 
-class Suit(Enum):
+class OrderedEnum(Enum):
+    """
+    See https://docs.python.org/3/library/enum.html#orderedenum
+    """
+
+    def __ge__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value >= other.value
+        return NotImplemented
+
+    def __gt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value > other.value
+        return NotImplemented
+
+    def __le__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value <= other.value
+        return NotImplemented
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
+
+
+class Suit(OrderedEnum):
     Unknown = auto()
     Club = auto()
     Diamond = auto()
@@ -31,7 +58,7 @@ suits = (
 )
 
 
-class Rank(Enum):
+class Rank(OrderedEnum):
     Unknown = auto()
     Ace = auto()
     Two = auto()
@@ -79,7 +106,7 @@ ranks = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(order=True, frozen=True)
 class Card:
     suit: Suit
     rank: Rank
@@ -132,3 +159,12 @@ class Deck:
             deck.cards.append(Card.joker)
 
         return deck
+
+    def sort(self, trump=Suit.Unknown):
+        self.cards.sort()
+
+    def shuffle(self):
+        random.shuffle(self.cards)
+
+    def __str__(self):
+        return " ".join(c.symbol for c in self.cards)

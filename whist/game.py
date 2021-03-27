@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from .cards import Deck
 from .gamestate import GameState, GameStateView, Player
 
 
@@ -14,11 +15,48 @@ class Game:
     @staticmethod
     def initial_state(**settings):
         num_players = settings.get("num_players", 4)
-        players = []
+        player_names = ("north", "east", "south", "west")
+
+        # Create players (up to 4) based on preset player names
+        players = [
+            Player(id, name)
+            for id, (_, name) in enumerate(zip(range(num_players), player_names))
+        ]
+
+        # Initially each player starts with an empty hand
+        hands = {
+            p: Deck.empty()
+            for p in players
+        }
+
+        # Initally, we don't know who are partners.
+        partners = {}
 
         return GameState(
             players=players,
+            hands=hands,
+            partner=partners,
         )
+
+    def deal(self):
+        deck = Deck.sorted()
+        deck.shuffle()
+
+        hand_size = 13
+        assert len(self.state.players) == 4
+
+        for p in self.state.players:
+            for _ in range(hand_size):
+                card = deck.cards.pop()
+                self.state.hands[p].cards.append(card)
+            self.state.hands[p].sort()
+
+        self.state.kitty = deck
+
+        for p, h in self.state.hands.items():
+            print(f"Player: {p.name}")
+            print(f"- {h}")
+        print(self.state.kitty)
 
     @property
     def has_ended(self):
@@ -54,9 +92,11 @@ if __name__ == "__main__":
 
     game = Game()
 
+    game.deal()
+
     while not game.has_ended:
         player = game.current_player
-        view = GameStateView(game.state)
+        view = GameStateView(game.state, player)
 
         print(f"Turn: {player}")
         print(f"Pile: {view.pile}")
