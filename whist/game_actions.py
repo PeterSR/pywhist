@@ -13,3 +13,6 @@ class BaseAction:
 @dataclass(frozen=True)
 class PlayAction(BaseAction):
     card: Card
+
+    def __str__(self):
+        return f"Played {self.card.symbol}"
