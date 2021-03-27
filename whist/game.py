@@ -137,7 +137,7 @@ class Game:
                 # Reset round
                 state.round_reset()
 
-                self.state.events.append(TrickTakenEvent(team_id, trick))
+                self.state.events.append(TrickTakenEvent(trick_winner, team_id, trick))
 
                 state.turn = state.players.index(trick_winner)
 
@@ -233,7 +233,7 @@ if __name__ == "__main__":
         controllers.append(ai)
 
     my_view = controllers[0].game_state_view
-    #controllers[0] = "human"
+    controllers[0] = "human"
 
     game.deal()
 
@@ -284,7 +284,7 @@ if __name__ == "__main__":
             print()
 
             display_board(my_view)
-            #time.sleep(1)
+            time.sleep(1)
 
 
     print("Tricks:")
