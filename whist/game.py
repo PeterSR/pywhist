@@ -128,7 +128,7 @@ class Game:
                 state.trick_owner[trick_index] = trick_winner
                 state.pile = Deck.empty_pile()
 
-                self.state.events.append(TrickTakenEvent(player, trick))
+                self.state.events.append(TrickTakenEvent(trick_winner, trick))
 
                 state.turn = state.players.index(trick_winner)
 
