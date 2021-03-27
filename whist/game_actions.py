@@ -13,9 +13,3 @@ class BaseAction:
 @dataclass(frozen=True)
 class PlayAction(BaseAction):
     card: Card
-
-
-@dataclass(frozen=True)
-class ActionTaken:
-    player: Player
-    action: BaseAction

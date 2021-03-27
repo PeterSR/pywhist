@@ -1,7 +1,10 @@
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List
+from typing import List, Tuple
+
+
+# --- OrderedEnum ---
 
 
 class OrderedEnum(Enum):
@@ -30,6 +33,9 @@ class OrderedEnum(Enum):
         return NotImplemented
 
 
+# --- Suit ---
+
+
 class Suit(OrderedEnum):
     Unknown = auto()
     Club = auto()
@@ -56,6 +62,9 @@ suits = (
     Suit.Heart,
     Suit.Spade,
 )
+
+
+# --- Rank ---
 
 
 class Rank(OrderedEnum):
@@ -106,6 +115,9 @@ ranks = (
 )
 
 
+# --- Card ----
+
+
 @dataclass(order=True, frozen=True)
 class Card:
     suit: Suit
@@ -139,20 +151,30 @@ for suit, line in card_symbol_unicode.items():
         card_symbol[card] = symbol
 
 
+# --- Deck ---
+
+
 @dataclass
 class Deck:
     cards: List[Card]
+    allow_reorder: bool = True
 
     @staticmethod
     def empty():
         return Deck([])
 
     @staticmethod
+    def empty_pile():
+        deck = Deck.empty()
+        deck.allow_reorder = False
+        return deck
+
+    @staticmethod
     def from_deck(other: "Deck"):
         return Deck(other.cards.copy())
 
     @staticmethod
-    def sorted(num_jokers=3):
+    def full_deck(num_jokers=3):
         deck = Deck.empty()
 
         for suit in suits:
@@ -165,10 +187,12 @@ class Deck:
         return deck
 
     def sort(self, trump=Suit.Unknown):
-        self.cards.sort()
+        if self.allow_reorder:
+            self.cards.sort()
 
     def shuffle(self):
-        random.shuffle(self.cards)
+        if self.allow_reorder:
+            random.shuffle(self.cards)
 
     def take(self, card: Card):
         return self.cards.remove(card)
@@ -178,6 +202,12 @@ class Deck:
         if sort:
             self.sort()
 
+    def to_trick(self) -> "Trick":
+        if len(self) != 4:
+            raise ValueError("to_trick only support tricks of size 4")
+
+        return tuple(self.cards)
+
     def __len__(self):
         return len(self.cards)
 
@@ -186,3 +216,10 @@ class Deck:
 
     def __str__(self):
         return " ".join(c.symbol for c in self.cards)
+
+
+# --- Trick ---
+
+
+Trick4 = Tuple[Card, Card, Card, Card]
+Trick = Trick4

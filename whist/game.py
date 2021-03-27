@@ -2,7 +2,8 @@ from dataclasses import dataclass
 
 from .cards import Suit, Card, Deck
 from .gamestate import GameState, GameStateView, Player
-from .game_actions import PlayAction, ActionTaken
+from .game_actions import BaseAction, PlayAction
+from .game_events import ActionTakenEvent, TrickTakenEvent
 
 
 @dataclass
@@ -21,7 +22,8 @@ class Game:
         # Create players (up to 4) based on preset player names
         players = [
             Player(id, name)
-            for id, (_, name) in enumerate(zip(range(num_players), player_names))
+            for id, (_, name)
+            in enumerate(zip(range(num_players), player_names))
         ]
 
         # Initially each player starts with an empty hand
@@ -37,12 +39,10 @@ class Game:
             players=players,
             hands=hands,
             partner=partners,
-            actions_taken=[],
-            tricks=[],
         )
 
     def deal(self):
-        deck = Deck.sorted()
+        deck = Deck.full_deck()
         deck.shuffle()
 
         hand_size = 13
@@ -59,11 +59,12 @@ class Game:
 
     @property
     def has_ended(self):
-        return False
+        hand_size = 13
+        return len(self.state.tricks) >= hand_size
 
     @property
     def current_player(self):
-        return self.state.players[self.state.turn]
+        return self.state.current_player
 
     def valid_actions(self, player):
         if player != self.current_player:
@@ -99,27 +100,72 @@ class Game:
         return action in self.valid_actions(player)
 
     def take_action(self, player, action):
+        if not isinstance(action, BaseAction):
+            raise ValueError(f"Not an action: {action}")
+
+        self.state.events.append(ActionTakenEvent(player, action))
+
         if isinstance(action, PlayAction):
-            hand = self.state.hands[player]
+            state = self.state
+            hand = state.hands[player]
             hand.take(action.card)
 
-            pile = self.state.pile
+            pile = state.pile
 
             if len(pile) == 0:
-                self.state.pile_suit = action.card.suit
+                state.pile_suit = action.card.suit
 
             pile.give(action.card)
+            state.pile_play.append(player)
 
-            if len(pile) == self.state.num_players:
-                self.state.tricks.append(pile)
-                self.state.pile = Deck.empty()
+            if len(pile) == state.num_players:
+                # Score trick
+                card_scores = self._score_pile(pile)
+                trick_winner = self._assign_trick(self.state.pile_play, card_scores)
+                trick = pile.to_trick()
+                trick_index = len(state.tricks)
+                state.tricks.append(trick)
+                state.trick_owner[trick_index] = trick_winner
+                state.pile = Deck.empty_pile()
+
+                self.state.events.append(TrickTakenEvent(player, trick))
+
+                state.turn = state.players.index(trick_winner)
+
+            else:
+                state.turn = (state.turn + 1) % state.num_players
         else:
             raise ValueError(f"Invalid action: {action}")
 
-        self.state.actions_taken.append(ActionTaken(player, action))
-        self.state.turn = (self.state.turn + 1) % self.state.num_players
-
         return True
+
+    def _score_pile(self, pile) -> list:
+        if len(pile) == 0:
+            return {}
+
+        first_card = pile.cards[0]
+        valid_trump = self.state.trump is not Suit.Unknown
+
+        card_scores = []
+        for card in pile:
+            value = card.rank.value
+            if valid_trump and card.suit is self.state.trump:
+                value += 100
+            elif card.suit is not first_card.suit:
+                value -= 100
+            card_scores.append(value)
+
+        if first_card == Card.joker:
+            card_scores[0] += 1000
+
+        return card_scores
+
+    def _assign_trick(self, pile_play, scores):
+        _, winner = max(zip(scores, pile_play))
+        return winner
+
+
+
 
 # --- CLI ---
 
@@ -159,6 +205,9 @@ def display_actions(actions):
 if __name__ == "__main__":
     # Interactive CLI game
 
+
+    last_event_index = 0
+
     game = Game()
 
     game.deal()
@@ -166,6 +215,12 @@ if __name__ == "__main__":
     while not game.has_ended:
         player = game.current_player
         view = GameStateView(game.state, player)
+
+        print("=== Events: ===")
+        if len(game.state.events) > last_event_index:
+            for event in game.state.events[last_event_index:]:
+                print(event)
+            last_event_index = len(game.state.events)
 
         print(f"=== Turn: {player.name} ===")
         print()

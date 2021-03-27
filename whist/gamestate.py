@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import List, Dict
 
-from .cards import Suit, Card, Deck
+from .cards import Suit, Card, Deck, Trick
 from .player import Player
-from .game_actions import ActionTaken
+from .game_events import BaseEvent
 
 
 @dataclass
@@ -12,11 +12,13 @@ class GameState:
     hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
     partner: list = None
-    kitty: Deck = Deck.empty()
-    pile: Deck = Deck.empty()
-    tricks: List[Deck] = None
+    kitty: Deck = None
+    pile: Deck = None
+    pile_play: List[Player] = None
+    tricks: List[Trick] = None
+    trick_owner: Dict[int, Player] = None
 
-    actions_taken: List[ActionTaken] = None
+    events: List[BaseEvent] = None
 
     # Index in players
     turn: int = 0
@@ -25,10 +27,20 @@ class GameState:
 
     mode: str = ""
 
+    def __post_init__(self):
+        self.pile = Deck.empty_pile()
+        self.pile_play = []
+        self.tricks = []
+        self.trick_owner = {}
+        self.events = []
+
     @property
     def num_players(self):
         return len(self.players)
 
+    @property
+    def current_player(self):
+        return self.players[self.turn]
 
 
 class GameStateView:
