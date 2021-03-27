@@ -1,11 +1,24 @@
 from dataclasses import dataclass
 
-from .gamestate import GameState, GameStateView
+from .gamestate import GameState, GameStateView, Player
 
 
 @dataclass
 class Game:
-    state: GameState
+    state: GameState = None
+
+    def __post_init__(self):
+        if self.state is None:
+            self.state = self.initial_state()
+
+    @staticmethod
+    def initial_state(**settings):
+        num_players = settings.get("num_players", 4)
+        players = []
+
+        return GameState(
+            players=players,
+        )
 
     @property
     def has_ended(self):
@@ -13,7 +26,7 @@ class Game:
 
     @property
     def current_player(self):
-        return "North"
+        return self.state.players[self.state.turn]
 
     def valid_actions(self):
         return []
@@ -32,6 +45,10 @@ def parse_cli_action(action):
     return True
 
 
+def display_actions(actions):
+    pass
+
+
 if __name__ == "__main__":
     # Interactive CLI game
 
@@ -44,6 +61,8 @@ if __name__ == "__main__":
         print(f"Turn: {player}")
         print(f"Pile: {view.pile}")
         print(f"Hand: {view.hand}")
+        print("Actions:")
+        display_actions(view.actions)
 
         while True:
             action = input("> ")

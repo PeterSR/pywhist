@@ -15,17 +15,18 @@ class Player:
 
 @dataclass
 class GameState:
-    players: List[Player]
-    hands: dict
-    trump: Suit
-    partner: list
-    deck: Deck
+    players: List[Player] = None
+    hands: dict = None
+    trump: Suit = Suit.Unknown
+    partner: list = None
+    deck: Deck = Deck.sorted()
 
-    turn: int  # Index in players
+    # Index in players
+    turn: int = 0
 
-    bid: str
+    bid: str = ""
 
-    mode: str
+    mode: str = ""
 
 
 
