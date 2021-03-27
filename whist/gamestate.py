@@ -28,8 +28,7 @@ class GameState:
     mode: str = ""
 
     def __post_init__(self):
-        self.pile = Deck.empty_pile()
-        self.pile_play = []
+        self.round_reset()
         self.tricks = []
         self.trick_owner = {}
         self.events = []
@@ -41,6 +40,10 @@ class GameState:
     @property
     def current_player(self):
         return self.players[self.turn]
+
+    def round_reset(self):
+        self.pile = Deck.empty_pile()
+        self.pile_play = []
 
 
 class GameStateView:

@@ -127,7 +127,7 @@ class Game:
                 trick_index = len(state.tricks)
                 state.tricks.append(trick)
                 state.trick_owner[trick_index] = trick_winner
-                state.pile = Deck.empty_pile()
+                state.round_reset()
 
                 self.state.events.append(TrickTakenEvent(trick_winner, trick))
 
@@ -229,11 +229,13 @@ if __name__ == "__main__":
 
             view = GameStateView(game.state, player)
 
+            print()
             print("=== Events: ===")
             if len(game.state.events) > last_event_index:
                 for event in game.state.events[last_event_index:]:
-                    print(event)
+                    print("-", event)
                 last_event_index = len(game.state.events)
+                print()
 
             print(f"=== Turn: {player.name} ===")
             print()
