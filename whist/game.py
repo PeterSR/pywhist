@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from .cards import Suit, Card, Deck
-from .gamestate import GameState, GameStateView, Player
+from .gamestate import GameState, GameStateView, Player, Partners
 from .game_actions import BaseAction, PlayAction
 from .game_events import ActionTakenEvent, TrickTakenEvent
 from .game_ai import RandomAI
@@ -34,12 +34,13 @@ class Game:
         }
 
         # Initally, we don't know who are partners.
-        partners = {}
+        partners = Partners(players)
+        partners.bisect(players[0], players[2])
 
         return GameState(
             players=players,
             hands=hands,
-            partner=partners,
+            partners=partners,
         )
 
     def deal(self):
@@ -122,14 +123,21 @@ class Game:
             if len(pile) == state.num_players:
                 # Score trick
                 card_scores = self._score_pile(pile)
+
+                # Determine winning team
                 trick_winner = self._assign_trick(self.state.pile_play, card_scores)
+                team_id = self.state.partners.team_id(trick_winner)
+
+                # Add trick to list of tricks
                 trick = pile.to_trick()
                 trick_index = len(state.tricks)
                 state.tricks.append(trick)
-                state.trick_owner[trick_index] = trick_winner
+                state.trick_owner[trick_index] = team_id
+
+                # Reset round
                 state.round_reset()
 
-                self.state.events.append(TrickTakenEvent(trick_winner, trick))
+                self.state.events.append(TrickTakenEvent(team_id, trick))
 
                 state.turn = state.players.index(trick_winner)
 
@@ -280,7 +288,10 @@ if __name__ == "__main__":
 
     score = Counter()
 
-    for trick_index, player in game.state.trick_owner.items():
-        score[player] += 1
+    for trick_index, team_id in game.state.trick_owner.items():
+        score[team_id] += 1
 
-    print(score)
+    for team_id, s in score.items():
+        members = game.state.partners.team_members(team_id)
+        team_str = ", ".join(p.name for p in members)
+        print(f"{team_str:<13}: {s}")

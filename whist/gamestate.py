@@ -3,6 +3,7 @@ from typing import List, Dict
 
 from .cards import Suit, Card, Deck, Trick
 from .player import Player
+from .partners import Partners, TeamID
 from .game_events import BaseEvent
 
 
@@ -11,12 +12,12 @@ class GameState:
     players: List[Player] = None
     hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
-    partner: list = None
+    partners: Partners = None
     kitty: Deck = None
     pile: Deck = None
     pile_play: List[Player] = None
     tricks: List[Trick] = None
-    trick_owner: Dict[int, Player] = None
+    trick_owner: Dict[int, TeamID] = None
 
     events: List[BaseEvent] = None
 
@@ -32,6 +33,9 @@ class GameState:
         self.tricks = []
         self.trick_owner = {}
         self.events = []
+
+        if self.partners is None:
+            self.partners = Partners(self.players)
 
     @property
     def num_players(self):

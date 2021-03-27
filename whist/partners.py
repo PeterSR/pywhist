@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from collections import defaultdict
 from typing import List, Dict
 
 from .player import Player
 
 
+Team = List[Player]
 TeamID = int
 
 
@@ -48,21 +50,29 @@ class Partners:
         self.join(*team_1_players)
         self.join(*team_2_players)
 
-    def team_id(self, player):
+    def team_id(self, player: Player):
         return self.team_id_assignment[player]
 
-    def team_members(self, team_id):
+    def team_members(self, team_id: TeamID) -> Team:
         return [
             player
             for player in self.players
             if self.team_id(player) == team_id
         ]
 
-    def team_size(self, team_id):
+    def team_size(self, team_id: TeamID):
         return len(self.team_members(team_id))
 
     @property
     def teams(self):
+        d = defaultdict(list)
+        for player in self.players:
+            team_id = self.team_id(player)
+            d[team_id].add(player)
+        return dict(d)
+
+    @property
+    def team_ids(self):
         return set(
             self.team_id(player)
             for player in self.players
@@ -70,4 +80,4 @@ class Partners:
 
     @property
     def num_teams(self):
-        return len(self.teams)
+        return len(self.team_ids)
