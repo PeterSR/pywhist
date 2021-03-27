@@ -1,5 +1,8 @@
 # pywhist
 
+A package containing the logic for the card game Whist and its variants.
+
+
 ## How to install
 
 ```
