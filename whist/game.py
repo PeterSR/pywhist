@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from .cards import Deck
+from .cards import Suit, Card, Deck
 from .gamestate import GameState, GameStateView, Player
-from .game_actions import PlayAction
+from .game_actions import PlayAction, ActionTaken
 
 
 @dataclass
@@ -37,6 +37,8 @@ class Game:
             players=players,
             hands=hands,
             partner=partners,
+            actions_taken=[],
+            tricks=[],
         )
 
     def deal(self):
@@ -47,12 +49,13 @@ class Game:
         assert len(self.state.players) == 4
 
         for p in self.state.players:
+            hand = self.state.hands[p]
             for _ in range(hand_size):
                 card = deck.cards.pop()
-                self.state.hands[p].give(card, sort=False)
-            self.state.hands[p].sort()
+                hand.give(card, sort=False)
+            hand.sort()
 
-        self.state.kitty = deck
+        self.state.kitty = Deck.from_deck(deck)
 
     @property
     def has_ended(self):
@@ -67,9 +70,25 @@ class Game:
             return []
 
         hand = self.state.hands[player]
+        pile = self.state.pile
 
-        if len(self.state.pile) == 0:
+        if len(pile) == 0:
             return [PlayAction(card) for card in hand]
+        else:
+            first_card = pile.cards[0]
+
+            if first_card == Card.joker:
+                suits_from_hand = hand
+            else:
+                suits_from_hand = [
+                    card for card in hand
+                    if card.suit is first_card.suit
+                ]
+
+            if len(suits_from_hand) > 0:
+                return [PlayAction(card) for card in suits_from_hand]
+            else:  # Renons
+                return [PlayAction(card) for card in hand]
 
         return []
 
@@ -79,6 +98,28 @@ class Game:
 
         return action in self.valid_actions(player)
 
+    def take_action(self, player, action):
+        if isinstance(action, PlayAction):
+            hand = self.state.hands[player]
+            hand.take(action.card)
+
+            pile = self.state.pile
+
+            if len(pile) == 0:
+                self.state.pile_suit = action.card.suit
+
+            pile.give(action.card)
+
+            if len(pile) == self.state.num_players:
+                self.state.tricks.append(pile)
+                self.state.pile = Deck.empty()
+        else:
+            raise ValueError(f"Invalid action: {action}")
+
+        self.state.actions_taken.append(ActionTaken(player, action))
+        self.state.turn = (self.state.turn + 1) % self.state.num_players
+
+        return True
 
 # --- CLI ---
 
@@ -139,6 +180,8 @@ if __name__ == "__main__":
             s = input("> ")
             action = parse_cli_action(s, actions)
             if game.is_valid_action(player, action):
-                game.take_action(player, action)
+                result = game.take_action(player, action)
+                if result:
+                    break
             else:
                 print("Invalid action.")

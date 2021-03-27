@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from .player import Player
 from .cards import Card
 
 
@@ -13,3 +14,8 @@ class BaseAction:
 class PlayAction(BaseAction):
     card: Card
 
+
+@dataclass(frozen=True)
+class ActionTaken:
+    player: Player
+    action: BaseAction

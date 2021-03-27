@@ -2,18 +2,8 @@ from dataclasses import dataclass
 from typing import List, Dict
 
 from .cards import Suit, Card, Deck
-
-
-PlayerID = int
-
-@dataclass(frozen=True)
-class Player:
-    id: PlayerID
-    name: str
-
-
-
-
+from .player import Player
+from .game_actions import ActionTaken
 
 
 @dataclass
@@ -26,12 +16,18 @@ class GameState:
     pile: Deck = Deck.empty()
     tricks: List[Deck] = None
 
+    actions_taken: List[ActionTaken] = None
+
     # Index in players
     turn: int = 0
 
     bid: str = ""
 
     mode: str = ""
+
+    @property
+    def num_players(self):
+        return len(self.players)
 
 
 

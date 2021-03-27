@@ -60,7 +60,6 @@ suits = (
 
 class Rank(OrderedEnum):
     Unknown = auto()
-    Ace = auto()
     Two = auto()
     Three = auto()
     Four = auto()
@@ -73,6 +72,7 @@ class Rank(OrderedEnum):
     Jack = auto()
     Queen = auto()
     King = auto()
+    Ace = auto()
     Joker = auto()
 
     @property
@@ -146,6 +146,10 @@ class Deck:
     @staticmethod
     def empty():
         return Deck([])
+
+    @staticmethod
+    def from_deck(other: "Deck"):
+        return Deck(other.cards.copy())
 
     @staticmethod
     def sorted(num_jokers=3):
