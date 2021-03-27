@@ -204,6 +204,8 @@ def display_actions(actions):
 
 
 if __name__ == "__main__":
+    import time
+
     # Interactive CLI game
 
 
@@ -217,7 +219,8 @@ if __name__ == "__main__":
         ai = RandomAI(view)
         controllers.append(ai)
 
-    controllers[0] = "human"
+    my_view = controllers[0].game_state_view
+    #controllers[0] = "human"
 
     game.deal()
 
@@ -226,21 +229,19 @@ if __name__ == "__main__":
         controller = controllers[game.state.turn]
 
         if controller == "human":
-
-            view = GameStateView(game.state, player)
-
-            print()
-            print("=== Events: ===")
             if len(game.state.events) > last_event_index:
+                print()
+                print("=== Events: ===")
                 for event in game.state.events[last_event_index:]:
                     print("-", event)
                 last_event_index = len(game.state.events)
                 print()
 
+            print()
             print(f"=== Turn: {player.name} ===")
             print()
 
-            display_board(view)
+            display_board(my_view)
 
             print("Actions:")
             actions = game.valid_actions(player)
@@ -264,3 +265,22 @@ if __name__ == "__main__":
             actions = game.valid_actions(player)
             action = controller.pick_action(actions)
             game.take_action(player, action)
+
+            print()
+            print(f"=== Turn taken: {player.name} ===")
+            print()
+
+            display_board(my_view)
+            #time.sleep(1)
+
+
+    print("Tricks:")
+
+    from collections import Counter
+
+    score = Counter()
+
+    for trick_index, player in game.state.trick_owner.items():
+        score[player] += 1
+
+    print(score)
