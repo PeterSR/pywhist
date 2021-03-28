@@ -59,3 +59,14 @@ Actions:
 12: 🂫
 >
 ```
+
+
+## How to test
+
+Install `pytest` (see `requirements.txt`).
+
+Then
+
+```
+pytest
+```

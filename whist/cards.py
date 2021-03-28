@@ -1,36 +1,10 @@
+from __future__ import annotations
+
 import random
 from dataclasses import dataclass
-from enum import Enum, auto
 from typing import List, Tuple
 
-
-# --- OrderedEnum ---
-
-
-class OrderedEnum(Enum):
-    """
-    See https://docs.python.org/3/library/enum.html#orderedenum
-    """
-
-    def __ge__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value >= other.value
-        return NotImplemented
-
-    def __gt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value > other.value
-        return NotImplemented
-
-    def __le__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value <= other.value
-        return NotImplemented
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value < other.value
-        return NotImplemented
+from .util import OrderedEnum, auto
 
 
 # --- Suit ---
@@ -160,17 +134,17 @@ class Deck:
     allow_reorder: bool = True
 
     @staticmethod
-    def empty():
+    def empty() -> Deck:
         return Deck([])
 
     @staticmethod
-    def empty_pile():
+    def empty_pile() -> Deck:
         deck = Deck.empty()
         deck.allow_reorder = False
         return deck
 
     @staticmethod
-    def from_deck(other: "Deck"):
+    def from_deck(other: Deck):
         return Deck(other.cards.copy())
 
     @staticmethod
@@ -202,7 +176,7 @@ class Deck:
         if sort:
             self.sort()
 
-    def to_trick(self) -> "Trick":
+    def to_trick(self) -> Trick:
         if len(self) != 4:
             raise ValueError("to_trick only support tricks of size 4")
 
