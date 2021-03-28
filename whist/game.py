@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from collections import Counter
 
 from .cards import Suit, Card, Deck
 from .gamestate import GameState, GameStateView, Player, Partners
@@ -173,6 +174,20 @@ class Game:
         _, winner = max(zip(scores, pile_play))
         return winner
 
+    def get_scoreboard(self):
+        scores = Counter()
+
+        for trick_index, team_id in self.state.trick_owner.items():
+            scores[team_id] += 1
+
+        scoreboard = {}
+
+        for team_id, score in scores.items():
+            members = tuple(self.state.partners.team_members(team_id))
+            scoreboard[members] = score
+
+        return scoreboard
+
 
 
 
@@ -233,7 +248,7 @@ if __name__ == "__main__":
         controllers.append(ai)
 
     my_view = controllers[0].game_state_view
-    controllers[0] = "human"
+    #controllers[0] = "human"
 
     game.deal()
 
@@ -284,19 +299,15 @@ if __name__ == "__main__":
             print()
 
             display_board(my_view)
-            time.sleep(1)
+
+            if controllers[0] == "human":
+                time.sleep(1)
 
 
     print("Tricks:")
 
-    from collections import Counter
+    scoreboard = game.get_scoreboard()
 
-    score = Counter()
-
-    for trick_index, team_id in game.state.trick_owner.items():
-        score[team_id] += 1
-
-    for team_id, s in score.items():
-        members = game.state.partners.team_members(team_id)
-        team_str = ", ".join(p.name for p in members)
+    for team, s in scoreboard.items():
+        team_str = ", ".join(p.name for p in team)
         print(f"{team_str:<13}: {s}")
