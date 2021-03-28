@@ -60,6 +60,10 @@ class GameStateView:
         self.player = player
 
     @property
+    def trump(self):
+        return self.state.trump
+
+    @property
     def pile(self):
         return self.state.pile
 

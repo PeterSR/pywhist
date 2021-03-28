@@ -51,12 +51,18 @@ class Game:
         hand_size = 13
         assert len(self.state.players) == 4
 
+        card = None
+
         for p in self.state.players:
             hand = self.state.hands[p]
             for _ in range(hand_size):
                 card = deck.cards.pop()
                 hand.give(card, sort=False)
             hand.sort()
+
+        assert card is not None
+
+        self.state.trump = card.suit
 
         self.state.kitty = Deck.from_deck(deck)
 
@@ -203,6 +209,10 @@ def display_board(view):
         print(f"Your partner: {p.name}")
 
     print()
+    print(f"Trump: {view.trump.symbol}")
+    print()
+
+    print()
     print(f"Pile: {view.pile}")
     print()
     print(f"Your hand: {view.hand}")
@@ -248,7 +258,7 @@ if __name__ == "__main__":
         controllers.append(ai)
 
     my_view = controllers[0].game_state_view
-    #controllers[0] = "human"
+    controllers[0] = "human"
 
     game.deal()
 
