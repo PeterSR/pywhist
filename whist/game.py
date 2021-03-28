@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from collections import Counter
 
 from .cards import Suit, Card, Deck
+from .tableround import TableRound
 from .gamestate import GameState, GameStateView, Player, Partners
 from .game_actions import BaseAction, PlayAction
 from .game_events import ActionTakenEvent, TrickTakenEvent
@@ -38,10 +39,15 @@ class Game:
         partners = Partners(players)
         partners.bisect(players[0], players[2])
 
+        dealer = players[2]
+        dealer_index = players.index(dealer)
+
         return GameState(
+            dealer=dealer,
             players=players,
             hands=hands,
             partners=partners,
+            turn=dealer_index,
         )
 
     def deal(self):
@@ -53,7 +59,9 @@ class Game:
 
         card = None
 
-        for p in self.state.players:
+        tableround = TableRound(self.state.dealer, self.state.players)
+
+        for p in tableround:
             hand = self.state.hands[p]
             for _ in range(hand_size):
                 card = deck.cards.pop()

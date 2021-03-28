@@ -9,6 +9,7 @@ from .game_events import BaseEvent
 
 @dataclass
 class GameState:
+    dealer: Player = None
     players: List[Player] = None
     hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
@@ -27,6 +28,8 @@ class GameState:
     bid: str = ""
 
     mode: str = ""
+
+    variant: str = "esmakker"
 
     def __post_init__(self):
         self.round_reset()
