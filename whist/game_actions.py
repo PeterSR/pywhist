@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from .player import Player
 from .cards import Card
+from .game_bids import Bid
 
 
 class BaseAction:
@@ -16,3 +16,11 @@ class PlayAction(BaseAction):
 
     def __str__(self):
         return f"Played {self.card.symbol}"
+
+
+@dataclass(frozen=True)
+class BidAction(BaseAction):
+    bid: Bid
+
+    def __str__(self):
+        return f"Bid {self.bid}"

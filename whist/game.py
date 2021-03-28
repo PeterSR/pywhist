@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from collections import Counter
 
@@ -12,13 +14,13 @@ from .game_ai import RandomAI
 @dataclass
 class Game:
     state: GameState = None
+    variant: str = "esmakker"
 
     def __post_init__(self):
         if self.state is None:
             self.state = self.initial_state()
 
-    @staticmethod
-    def initial_state(**settings):
+    def initial_state(self, **settings):
         num_players = settings.get("num_players", 4)
         player_names = ("north", "east", "south", "west")
 
@@ -37,7 +39,9 @@ class Game:
 
         # Initally, we don't know who are partners.
         partners = Partners(players)
-        partners.bisect(players[0], players[2])
+
+        if self.variant == "classic":
+            partners.bisect(players[0], players[2])
 
         dealer = players[2]
         dealer_index = players.index(dealer)
@@ -51,6 +55,8 @@ class Game:
         )
 
     def deal(self):
+        self.state.phase = "dealing"
+
         deck = Deck.full_deck()
         deck.shuffle()
 
@@ -68,11 +74,13 @@ class Game:
                 hand.give(card, sort=False)
             hand.sort()
 
-        assert card is not None
-
-        self.state.trump = card.suit
+        if self.variant == "classic":
+            assert card is not None
+            self.state.trump = card.suit
 
         self.state.kitty = Deck.from_deck(deck)
+
+        self.state.phase = "bidding"
 
     @property
     def has_ended(self):

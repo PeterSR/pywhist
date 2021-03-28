@@ -10,6 +10,7 @@ from .game_events import BaseEvent
 @dataclass
 class GameState:
     dealer: Player = None
+    bid_winner: Player = None
     players: List[Player] = None
     hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
@@ -29,7 +30,7 @@ class GameState:
 
     mode: str = ""
 
-    variant: str = "esmakker"
+    phase: str = "dealing"
 
     def __post_init__(self):
         self.round_reset()
