@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections import Counter
+from itertools import product
 
-from .cards import Suit, Card, Deck
+from .cards import Suit, Rank, Card, Deck, suits
 from .tableround import TableRound
 from .gamestate import GameState, GameStateView, Player, Partners
-from .game_actions import BaseAction, PlayAction
+from .game_actions import BaseAction, PlayAction, CallAction
+from .game_bids import Call
 from .game_events import ActionTakenEvent, TrickTakenEvent
 from .game_ai import RandomAI
 
@@ -43,7 +45,7 @@ class Game:
         if self.variant == "classic":
             partners.bisect(players[0], players[2])
 
-        dealer = players[2]
+        dealer = players[3]
         dealer_index = players.index(dealer)
 
         return GameState(
@@ -80,7 +82,11 @@ class Game:
 
         self.state.kitty = Deck.from_deck(deck)
 
-        self.state.phase = "bidding"
+        self.state.phase = "calling"
+
+        caller = next(iter(TableRound(self.state.dealer, self.state.players)))
+        self.bid_winner = caller
+        self.state.turn = self.state.players.index(self.bid_winner)
 
     @property
     def has_ended(self):
@@ -95,26 +101,40 @@ class Game:
         if player != self.current_player:
             return []
 
-        hand = self.state.hands[player]
-        pile = self.state.pile
+        if self.state.phase == "calling":
+            calls = [
+                CallAction(Call(trump, partner_ace))
+                for trump, partner_ace in product(suits, suits)
+            ]
 
-        if len(pile) == 0:
-            return [PlayAction(card) for card in hand]
-        else:
-            first_card = pile.cards[0]
+            return calls
 
-            if first_card == Card.joker:
-                suits_from_hand = hand
-            else:
-                suits_from_hand = [
-                    card for card in hand
-                    if card.suit is first_card.suit
-                ]
+        elif self.state.phase == "playing":
+            hand = self.state.hands[player]
+            pile = self.state.pile
 
-            if len(suits_from_hand) > 0:
-                return [PlayAction(card) for card in suits_from_hand]
-            else:  # Renons
+            if len(pile) == 0:
                 return [PlayAction(card) for card in hand]
+            else:
+                first_card = pile.cards[0]
+
+                if first_card == Card.joker:
+                    suits_from_hand = hand
+                else:
+                    if first_card.suit == self.state.partner_ace:
+                        partner_ace = Card(self.state.partner_ace, Rank.Ace)
+                        if partner_ace in hand:
+                            return [PlayAction(partner_ace)]
+
+                    suits_from_hand = [
+                        card for card in hand
+                        if card.suit is first_card.suit
+                    ]
+
+                if len(suits_from_hand) > 0:
+                    return [PlayAction(card) for card in suits_from_hand]
+                else:  # Renons
+                    return [PlayAction(card) for card in hand]
 
         return []
 
@@ -130,7 +150,11 @@ class Game:
 
         self.state.events.append(ActionTakenEvent(player, action))
 
-        if isinstance(action, PlayAction):
+        if isinstance(action, CallAction):
+            self.state.trump = action.call.trump
+            self.state.partner_ace = action.call.partner_ace
+            self.state.phase = "playing"
+        elif isinstance(action, PlayAction):
             state = self.state
             hand = state.hands[player]
             hand.take(action.card)
@@ -142,6 +166,11 @@ class Game:
 
             pile.give(action.card)
             state.pile_play.append(player)
+
+            # If the partner ace was played, assign partners
+            partner_ace = Card(self.state.partner_ace, Rank.Ace)
+            if action.card == partner_ace:
+                self.state.partners.bisect(self.bid_winner, player)
 
             if len(pile) == state.num_players:
                 # Score trick
@@ -221,11 +250,14 @@ def display_board(view):
         print(f"{p.name:>6}: {hand}")
 
     print()
+    if len(view.partners) == 0:
+        print("(You have no partner)")
     for p in view.partners:
         print(f"Your partner: {p.name}")
 
     print()
-    print(f"Trump: {view.trump.symbol}")
+    print(f"Trump:       {view.trump.symbol}")
+    print(f"Partner Ace: {view.partner_ace.symbol}")
     print()
 
     print()
@@ -252,6 +284,8 @@ def display_actions(actions):
     for i, action in enumerate(actions):
         if isinstance(action, PlayAction):
             s = action.card.symbol
+        elif isinstance(action, CallAction):
+            s = f"Call {action.call.trump.symbol} trump with {action.call.partner_ace.symbol} ace"
         else:
             s = "?"
         print(f"{i:>2}: {s}")
@@ -274,7 +308,7 @@ if __name__ == "__main__":
         controllers.append(ai)
 
     my_view = controllers[0].game_state_view
-    controllers[0] = "human"
+    #controllers[0] = "human"
 
     game.deal()
 
@@ -329,6 +363,15 @@ if __name__ == "__main__":
             if controllers[0] == "human":
                 time.sleep(1)
 
+
+
+    if len(game.state.events) > last_event_index:
+        print()
+        print("=== Events: ===")
+        for event in game.state.events[last_event_index:]:
+            print("-", event)
+        last_event_index = len(game.state.events)
+        print()
 
     print("Tricks:")
 

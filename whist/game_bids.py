@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from .util import OrderedEnum, auto
+from .cards import Suit
 
 
 class BidAddition(OrderedEnum):
@@ -21,3 +22,9 @@ class Bid:
     amount: int
     addition: BidAddition
     nolo: BidNolo
+
+
+@dataclass
+class Call:
+    trump: Suit = None
+    partner_ace: Suit = None

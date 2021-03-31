@@ -14,6 +14,7 @@ class GameState:
     players: List[Player] = None
     hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
+    partner_ace: Suit = Suit.Unknown
     partners: Partners = None
     kitty: Deck = None
     pile: Deck = None
@@ -66,6 +67,10 @@ class GameStateView:
     @property
     def trump(self):
         return self.state.trump
+
+    @property
+    def partner_ace(self):
+        return self.state.partner_ace
 
     @property
     def pile(self):
