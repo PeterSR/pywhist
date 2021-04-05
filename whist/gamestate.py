@@ -15,6 +15,7 @@ class GameState:
     hands: Dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
     partner_ace: Suit = Suit.Unknown
+    partner_ace_revealed: bool = False
     partners: Partners = None
     kitty: Deck = None
     pile: Deck = None

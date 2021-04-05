@@ -153,6 +153,10 @@ class Game:
         if isinstance(action, CallAction):
             self.state.trump = action.call.trump
             self.state.partner_ace = action.call.partner_ace
+
+            partner_ace_player = self._determine_partner_ace_player()
+            self.state.partners.bisect(self.bid_winner, partner_ace_player)
+
             self.state.phase = "playing"
         elif isinstance(action, PlayAction):
             state = self.state
@@ -170,7 +174,7 @@ class Game:
             # If the partner ace was played, assign partners
             partner_ace = Card(self.state.partner_ace, Rank.Ace)
             if action.card == partner_ace:
-                self.state.partners.bisect(self.bid_winner, player)
+                self.state.partner_ace_revealed = True
 
             if len(pile) == state.num_players:
                 # Score trick
@@ -224,6 +228,19 @@ class Game:
     def _assign_trick(self, pile_play, scores):
         _, winner = max(zip(scores, pile_play))
         return winner
+
+    def _determine_partner_ace_player(self):
+        partner_ace_card = Card(self.state.partner_ace, Rank.Ace)
+
+        for player in self.state.players:
+            hand = self.state.hands[player]
+            for card in hand:
+                if card == partner_ace_card:
+                    return player
+
+        return None
+
+
 
     def get_scoreboard(self):
         scores = Counter()
@@ -308,7 +325,7 @@ if __name__ == "__main__":
         controllers.append(ai)
 
     my_view = controllers[0].game_state_view
-    #controllers[0] = "human"
+    controllers[0] = "human"
 
     game.deal()
 
