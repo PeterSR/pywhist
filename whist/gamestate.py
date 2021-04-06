@@ -95,6 +95,8 @@ class GameStateView:
 
     @property
     def partners(self):
+        if not self.state.partner_ace_revealed:
+            return tuple([])
         team_id = self.state.partners.team_id(self.player)
         members = self.state.partners.team_members(team_id)
         members.remove(self.player)
