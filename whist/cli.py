@@ -1,8 +1,9 @@
 from .match import Match
 from .game.game import Game
 from .game.state import GameStateView
+from .game.player import create_default_players
 from .game.actions import PlayAction, CallAction
-from .game.ai import RandomAI
+from .game.ai import BaseAI, RandomAI
 
 
 def display_board(view):
@@ -60,23 +61,31 @@ if __name__ == "__main__":
     game_speed = 1
     last_event_index = 0
 
+    players = create_default_players()
+
     match = Match()
-    game = Game()
+    match.state.scoreboard = {p.id: 0 for p in players}
 
     controllers = []
-    for player in game.state.players:
-        view = GameStateView(game.state, player)
-        ai = RandomAI(view)
+    for player in players:
+        ai = RandomAI(None)
         controllers.append(ai)
 
-    my_view = controllers[0].game_state_view
-    controllers[0] = "human"
-
+    human_index = 0
+    controllers[human_index] = "human"
 
     while not match.has_ended:
-        match.new_game()
+        match.new_game(players=players)
 
-        match.current_game.deal()
+        game = match.current_game
+
+        for player, controller in zip(players, controllers):
+            if isinstance(controller, BaseAI):
+                controller.game_state_view = GameStateView(game.state, player)
+
+        my_view = GameStateView(game.state, players[human_index])
+
+        game.deal()
 
         while not game.has_ended:
             player = game.current_player

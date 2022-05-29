@@ -10,7 +10,7 @@ class Match:
     Represents the game logic for a match of n games
     """
 
-    _current_game: Game = None
+    current_game: Game = None
     state: MatchState = None
 
     def __post_init__(self):
@@ -22,17 +22,10 @@ class Match:
             game_count=0,
         )
 
-    @property
-    def current_game(self) -> Game:
-        return self._current_game
-
-    @current_game.setter
-    def current_game(self, g: Game):
-        self._current_game = g
-        self.state.game_state = self._current_game.state
-
-    def new_game(self):
+    def new_game(self, **state_settings):
         self.current_game = Game()
+        self.current_game.state = self.current_game.initial_state(**state_settings)
+        self.state.game_state = self.current_game.state
 
     @property
     def has_ended(self):

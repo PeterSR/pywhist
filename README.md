@@ -29,7 +29,7 @@ pip install whist
 ### Interactive play
 
 ```
-$ python -m whist.game
+$ python -m whist.cli
 
 === Turn: north ===
 
