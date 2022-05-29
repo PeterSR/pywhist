@@ -8,3 +8,9 @@ PlayerID = int
 class Player:
     id: PlayerID
     name: str
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+        }

@@ -66,6 +66,14 @@ class GameStateView:
         self.player = player
 
     @property
+    def turn(self):
+        return self.state.turn
+
+    @property
+    def current_player(self):
+        return self.state.current_player
+
+    @property
     def trump(self):
         return self.state.trump
 
@@ -101,3 +109,11 @@ class GameStateView:
         members = self.state.partners.team_members(team_id)
         members.remove(self.player)
         return tuple(members)
+
+    def serialize(self):
+        return {
+            "turn": self.turn,
+            "current_player": self.current_player.serialize(),
+            "pov_player": self.player.serialize(),
+            "trump": self.trump.name,
+        }

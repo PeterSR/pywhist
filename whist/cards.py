@@ -18,9 +18,21 @@ class Suit(OrderedEnum):
     Spade = auto()
 
     @property
+    def name(self):
+        return suit_name[self]
+
+    @property
     def symbol(self):
         return suit_symbol[self]
 
+
+suit_name = {
+    Suit.Unknown: "unknown",
+    Suit.Club: "club",
+    Suit.Diamond: "diamond",
+    Suit.Heart: "heart",
+    Suit.Spade: "spade",
+}
 
 suit_symbol = {
     Suit.Unknown: "_",
@@ -59,9 +71,31 @@ class Rank(OrderedEnum):
     Joker = auto()
 
     @property
+    def name(self):
+        return rank_name[self]
+
+    @property
     def symbol(self):
         return rank_symbol[self]
 
+
+rank_name = {
+    Rank.Unknown: "unknown",
+    Rank.Ace: "ace",
+    Rank.Two: "2",
+    Rank.Three: "3",
+    Rank.Four: "4",
+    Rank.Five: "5",
+    Rank.Six: "6",
+    Rank.Seven: "7",
+    Rank.Eight: "8",
+    Rank.Nine: "9",
+    Rank.Ten: "10",
+    Rank.Jack: "jack",
+    Rank.Queen: "queen",
+    Rank.King: "king",
+    Rank.Joker: "joker",
+}
 
 rank_symbol = {
     Rank.Unknown: "_",
@@ -96,6 +130,13 @@ ranks = (
 class Card:
     suit: Suit
     rank: Rank
+
+    @property
+    def name(self):
+        if self == Card.joker:
+            return "joker"
+        else:
+            return f"{self.rank}-{self.suit}"
 
     @property
     def symbol(self):
