@@ -63,7 +63,7 @@ Actions:
 
 ## How to test
 
-Install `pytest` (see `requirements.txt`).
+Install `pytest` (see `requirements-dev.txt`).
 
 Then
 
