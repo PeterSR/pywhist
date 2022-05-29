@@ -14,6 +14,10 @@ from .events import ActionTakenEvent, TrickTakenEvent
 
 @dataclass
 class Game:
+    """
+    Represents the game logic for a single game (dealing, bidding and 13 tricks)
+    """
+
     state: GameState = None
     variant: str = "esmakker"
 

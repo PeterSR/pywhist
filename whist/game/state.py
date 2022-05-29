@@ -9,6 +9,10 @@ from .events import BaseEvent
 
 @dataclass
 class GameState:
+    """
+    Represents the state of a single game (dealing, bidding and 13 tricks)
+    """
+
     dealer: Player = None
     bid_winner: Player = None
     players: List[Player] = None
