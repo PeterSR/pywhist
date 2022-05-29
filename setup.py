@@ -7,7 +7,7 @@ with open("README.md") as f:
 
 setup(
     name="whist",
-    version="0.1.0",
+    version="0.2.0",
     description="A package containing the logic for the card game Whist and its variants.",
     long_description=readme,
     long_description_content_type="text/markdown",
