@@ -3,8 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections import Counter
 from itertools import product
+from typing import List
+
 
 from ..cards import Suit, Rank, Card, Deck, suits
+from .player import create_default_players
 from .tableround import TableRound
 from .state import GameState, Player, Partners
 from .actions import BaseAction, PlayAction, CallAction
@@ -26,15 +29,10 @@ class Game:
             self.state = self.initial_state()
 
     def initial_state(self, **settings):
-        num_players = settings.get("num_players", 4)
-        player_names = ("north", "east", "south", "west")
+        players = settings.get("players")
 
-        # Create players (up to 4) based on preset player names
-        players = [
-            Player(id, name)
-            for id, (_, name)
-            in enumerate(zip(range(num_players), player_names))
-        ]
+        if players is None:
+            players = create_default_players()
 
         # Initially each player starts with an empty hand
         hands = {
@@ -48,15 +46,17 @@ class Game:
         if self.variant == "classic":
             partners.bisect(players[0], players[2])
 
-        dealer = players[3]
-        dealer_index = players.index(dealer)
+        dealer_index = settings.get("dealer_index", 0)
+        dealer = players[dealer_index]
+
+        turn = settings.get("turn", 0)
 
         return GameState(
             dealer=dealer,
             players=players,
             hands=hands,
             partners=partners,
-            turn=dealer_index,
+            turn=turn,
         )
 
     def deal(self):

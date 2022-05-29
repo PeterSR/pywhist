@@ -1,3 +1,4 @@
+from .match import Match
 from .game.game import Game
 from .game.state import GameStateView
 from .game.actions import PlayAction, CallAction
@@ -59,6 +60,7 @@ if __name__ == "__main__":
     game_speed = 1
     last_event_index = 0
 
+    match = Match()
     game = Game()
 
     controllers = []
@@ -70,83 +72,87 @@ if __name__ == "__main__":
     my_view = controllers[0].game_state_view
     controllers[0] = "human"
 
-    game.deal()
 
-    while not game.has_ended:
-        player = game.current_player
-        controller = controllers[game.state.turn]
+    while not match.has_ended:
+        match.new_game()
 
-        if controller == "human":
-            if len(game.state.events) > last_event_index:
+        match.current_game.deal()
+
+        while not game.has_ended:
+            player = game.current_player
+            controller = controllers[game.state.turn]
+
+            if controller == "human":
+                if len(game.state.events) > last_event_index:
+                    print()
+                    print("=== Events: ===")
+                    for event in game.state.events[last_event_index:]:
+                        print("-", event)
+                    last_event_index = len(game.state.events)
+                    print()
+
                 print()
-                print("=== Events: ===")
-                for event in game.state.events[last_event_index:]:
-                    print("-", event)
-                last_event_index = len(game.state.events)
+                print(f"=== Turn: {player.name} ===")
                 print()
 
-            print()
-            print(f"=== Turn: {player.name} ===")
-            print()
+                display_board(my_view)
 
-            display_board(my_view)
+                print("Actions:")
+                actions = game.valid_actions(player)
+                display_actions(actions)
 
-            print("Actions:")
-            actions = game.valid_actions(player)
-            display_actions(actions)
-
-            while True:
-                s = input("> ")
-                if s == "tricks":
-                    print(game.state.tricks)
-                    print(game.state.trick_owner)
-                    continue
-
-                if s.startswith("speed:"):
-                    _, x = s.split(":", 2)
-                    try:
-                        game_speed = float(x)
-                    except ValueError:
-                        pass
-                    else:
-                        print(f"Game speed changed to: {game_speed}")
+                while True:
+                    s = input("> ")
+                    if s == "tricks":
+                        print(game.state.tricks)
+                        print(game.state.trick_owner)
                         continue
 
-                action = parse_cli_action(s, actions)
-                if game.is_valid_action(player, action):
-                    result = game.take_action(player, action)
-                    if result:
-                        break
-                else:
-                    print("Invalid action.")
-        else:
-            actions = game.valid_actions(player)
-            action = controller.pick_action(actions)
-            game.take_action(player, action)
+                    if s.startswith("speed:"):
+                        _, x = s.split(":", 2)
+                        try:
+                            game_speed = float(x)
+                        except ValueError:
+                            pass
+                        else:
+                            print(f"Game speed changed to: {game_speed}")
+                            continue
 
+                    action = parse_cli_action(s, actions)
+                    if game.is_valid_action(player, action):
+                        result = game.take_action(player, action)
+                        if result:
+                            break
+                    else:
+                        print("Invalid action.")
+            else:
+                actions = game.valid_actions(player)
+                action = controller.pick_action(actions)
+                game.take_action(player, action)
+
+                print()
+                print(f"=== Turn taken: {player.name} ===")
+                print()
+
+                display_board(my_view)
+
+                if controllers[0] == "human":
+                    time.sleep(game_speed)
+
+
+
+        if len(game.state.events) > last_event_index:
             print()
-            print(f"=== Turn taken: {player.name} ===")
+            print("=== Events: ===")
+            for event in game.state.events[last_event_index:]:
+                print("-", event)
+            last_event_index = len(game.state.events)
             print()
 
-            display_board(my_view)
+        print("Tricks:")
 
-            if controllers[0] == "human":
-                time.sleep(game_speed)
+        scoreboard = game.get_scoreboard()
 
-
-
-    if len(game.state.events) > last_event_index:
-        print()
-        print("=== Events: ===")
-        for event in game.state.events[last_event_index:]:
-            print("-", event)
-        last_event_index = len(game.state.events)
-        print()
-
-    print("Tricks:")
-
-    scoreboard = game.get_scoreboard()
-
-    for team, s in scoreboard.items():
-        team_str = ", ".join(p.name for p in team)
-        print(f"{team_str:<13}: {s}")
+        for team, s in scoreboard.items():
+            team_str = ", ".join(p.name for p in team)
+            print(f"{team_str:<13}: {s}")

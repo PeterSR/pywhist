@@ -48,6 +48,10 @@ class GameState:
             self.partners = Partners(self.players)
 
     @property
+    def round(self):
+        return len(self.tricks)
+
+    @property
     def num_players(self):
         return len(self.players)
 
