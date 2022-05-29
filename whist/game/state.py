@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import List, Dict
 
-from .cards import Suit, Card, Deck, Trick
+from ..cards import Suit, Card, Deck, Trick
 from .player import Player
 from .partners import Partners, TeamID
-from .game_events import BaseEvent
+from .events import BaseEvent
 
 
 @dataclass

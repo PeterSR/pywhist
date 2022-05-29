@@ -1,7 +1,7 @@
 import pytest
 
-from whist.player import Player
-from whist.partners import Partners
+from whist.game.player import Player
+from whist.game.partners import Partners
 
 
 @pytest.fixture

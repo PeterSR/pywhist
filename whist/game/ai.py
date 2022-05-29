@@ -1,6 +1,6 @@
 import random
 
-from .gamestate import GameStateView
+from .state import GameStateView
 
 
 class BaseAI:

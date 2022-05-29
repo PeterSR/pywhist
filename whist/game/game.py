@@ -4,13 +4,12 @@ from dataclasses import dataclass
 from collections import Counter
 from itertools import product
 
-from .cards import Suit, Rank, Card, Deck, suits
+from ..cards import Suit, Rank, Card, Deck, suits
 from .tableround import TableRound
-from .gamestate import GameState, GameStateView, Player, Partners
-from .game_actions import BaseAction, PlayAction, CallAction
-from .game_bids import Call
-from .game_events import ActionTakenEvent, TrickTakenEvent
-from .game_ai import RandomAI
+from .state import GameState, Player, Partners
+from .actions import BaseAction, PlayAction, CallAction
+from .bids import Call
+from .events import ActionTakenEvent, TrickTakenEvent
 
 
 @dataclass
@@ -255,145 +254,3 @@ class Game:
             scoreboard[members] = score
 
         return scoreboard
-
-
-
-
-# --- CLI ---
-
-
-def display_board(view):
-    for p, hand in view.other_players.items():
-        print(f"{p.name:>6}: {hand}")
-
-    print()
-    if len(view.partners) == 0:
-        print("(You have no partner)")
-    for p in view.partners:
-        print(f"Your partner: {p.name}")
-
-    print()
-    print(f"Trump:       {view.trump.symbol}")
-    print(f"Partner Ace: {view.partner_ace.symbol}")
-    print()
-
-    print()
-    print(f"Pile: {view.pile}")
-    print()
-    print(f"Your hand: {view.hand}")
-    print()
-
-
-
-def parse_cli_action(s, actions):
-    try:
-        index = int(s)
-    except ValueError:
-        return None
-
-    try:
-        return actions[index]
-    except IndexError:
-        return None
-
-
-def display_actions(actions):
-    for i, action in enumerate(actions):
-        if isinstance(action, PlayAction):
-            s = action.card.symbol
-        elif isinstance(action, CallAction):
-            s = f"Call {action.call.trump.symbol} trump with {action.call.partner_ace.symbol} ace"
-        else:
-            s = "?"
-        print(f"{i:>2}: {s}")
-
-
-if __name__ == "__main__":
-    import time
-
-    # Interactive CLI game
-
-
-    last_event_index = 0
-
-    game = Game()
-
-    controllers = []
-    for player in game.state.players:
-        view = GameStateView(game.state, player)
-        ai = RandomAI(view)
-        controllers.append(ai)
-
-    my_view = controllers[0].game_state_view
-    controllers[0] = "human"
-
-    game.deal()
-
-    while not game.has_ended:
-        player = game.current_player
-        controller = controllers[game.state.turn]
-
-        if controller == "human":
-            if len(game.state.events) > last_event_index:
-                print()
-                print("=== Events: ===")
-                for event in game.state.events[last_event_index:]:
-                    print("-", event)
-                last_event_index = len(game.state.events)
-                print()
-
-            print()
-            print(f"=== Turn: {player.name} ===")
-            print()
-
-            display_board(my_view)
-
-            print("Actions:")
-            actions = game.valid_actions(player)
-            display_actions(actions)
-
-            while True:
-                s = input("> ")
-                if s == "tricks":
-                    print(game.state.tricks)
-                    print(game.state.trick_owner)
-                    continue
-
-                action = parse_cli_action(s, actions)
-                if game.is_valid_action(player, action):
-                    result = game.take_action(player, action)
-                    if result:
-                        break
-                else:
-                    print("Invalid action.")
-        else:
-            actions = game.valid_actions(player)
-            action = controller.pick_action(actions)
-            game.take_action(player, action)
-
-            print()
-            print(f"=== Turn taken: {player.name} ===")
-            print()
-
-            display_board(my_view)
-
-            if controllers[0] == "human":
-                time.sleep(1)
-
-
-
-    if len(game.state.events) > last_event_index:
-        print()
-        print("=== Events: ===")
-        for event in game.state.events[last_event_index:]:
-            print("-", event)
-        last_event_index = len(game.state.events)
-        print()
-
-    print("Tricks:")
-
-    scoreboard = game.get_scoreboard()
-
-    for team, s in scoreboard.items():
-        team_str = ", ".join(p.name for p in team)
-        print(f"{team_str:<13}: {s}")

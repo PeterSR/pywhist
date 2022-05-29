@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from .cards import Card
-from .game_bids import Bid, Call
+from ..cards import Card
+from .bids import Bid, Call
 
 
 class BaseAction:

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from .util import OrderedEnum, auto
-from .cards import Suit
+from ..util import OrderedEnum, auto
+from ..cards import Suit
 
 
 class BidAddition(OrderedEnum):

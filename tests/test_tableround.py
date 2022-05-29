@@ -1,7 +1,7 @@
 import pytest
 
-from whist.player import Player
-from whist.tableround import TableRound
+from whist.game.player import Player
+from whist.game.tableround import TableRound
 
 
 @pytest.fixture
