@@ -56,6 +56,7 @@ if __name__ == "__main__":
     # Interactive CLI game
 
 
+    game_speed = 1
     last_event_index = 0
 
     game = Game()
@@ -101,6 +102,16 @@ if __name__ == "__main__":
                     print(game.state.trick_owner)
                     continue
 
+                if s.startswith("speed:"):
+                    _, x = s.split(":", 2)
+                    try:
+                        game_speed = float(x)
+                    except ValueError:
+                        pass
+                    else:
+                        print(f"Game speed changed to: {game_speed}")
+                        continue
+
                 action = parse_cli_action(s, actions)
                 if game.is_valid_action(player, action):
                     result = game.take_action(player, action)
@@ -120,7 +131,7 @@ if __name__ == "__main__":
             display_board(my_view)
 
             if controllers[0] == "human":
-                time.sleep(1)
+                time.sleep(game_speed)
 
 
 
