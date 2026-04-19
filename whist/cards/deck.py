@@ -46,9 +46,13 @@ class Deck:
         if self.allow_reorder:
             self.cards.sort()
 
-    def shuffle(self) -> None:
-        if self.allow_reorder:
+    def shuffle(self, rng: random.Random | None = None) -> None:
+        if not self.allow_reorder:
+            return
+        if rng is None:
             random.shuffle(self.cards)
+        else:
+            rng.shuffle(self.cards)
 
     def take(self, card: Card) -> None:
         self.cards.remove(card)

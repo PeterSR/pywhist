@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
 from ..cards import Card, Deck, Suit, Trick
@@ -8,57 +10,51 @@ from .phase import Phase
 from .player import Player
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class GameState:
-    """
-    Represents the state of a single game (dealing, bidding and 13 tricks)
+    """Immutable state of a single hand.
+
+    All transitions go through `whist.game.reducer.apply`, which returns a
+    new `GameState`. `Game.take_action` is a thin wrapper that reassigns
+    `self.state` to the new value.
+
+    `hands` and `trick_owner` are plain dicts (not `MappingProxyType`) so
+    msgspec can serialize them without a helper. The frozen dataclass blocks
+    field reassignment; mutating the contained dicts is a reducer-only
+    operation and a programming error anywhere else.
     """
 
-    dealer: Player = None
-    bid_winner: Player = None
-    players: list[Player] = None
-    hands: dict[Player, Deck] = None
+    players: tuple[Player, ...]
+    dealer: Player | None = None
+    bid_winner: Player | None = None
+    hands: dict[Player, Deck] = field(default_factory=dict)
     trump: Suit = Suit.Unknown
     partner_ace: Suit = Suit.Unknown
     partner_ace_revealed: bool = False
-    partners: Partners = None
-    kitty: Deck = None
-    pile: Deck = None
-    pile_play: list[Player] = None
-    tricks: list[Trick] = None
-    trick_owner: dict[int, TeamID] = None
-
-    events: list[BaseEvent] = None
-
-    # Index in players
+    partners: Partners | None = None
+    kitty: Deck | None = None
+    pile: Deck = field(default_factory=Deck.empty_pile)
+    pile_play: tuple[Player, ...] = ()
+    tricks: tuple[Trick, ...] = ()
+    trick_owner: dict[int, TeamID] = field(default_factory=dict)
+    events: tuple[BaseEvent, ...] = ()
     turn: int = 0
-
     phase: Phase = Phase.DEALING
 
-    def __post_init__(self):
-        self.round_reset()
-        self.tricks = []
-        self.trick_owner = {}
-        self.events = []
-
-        if self.partners is None:
-            self.partners = Partners(self.players)
-
     @property
-    def round(self):
+    def round(self) -> int:
         return len(self.tricks)
 
     @property
-    def num_players(self):
+    def num_players(self) -> int:
         return len(self.players)
 
     @property
-    def current_player(self):
+    def current_player(self) -> Player:
         return self.players[self.turn]
 
-    def round_reset(self):
-        self.pile = Deck.empty_pile()
-        self.pile_play = []
+    def replace(self, **changes: Any) -> GameState:
+        return replace(self, **changes)
 
     def to_dict(self) -> dict[str, Any]:
         """Full (non-redacted) state, suitable for persistence / RL replay.
@@ -67,6 +63,7 @@ class GameState:
         full partner assignment. Do NOT send this to a client — use a
         `GameStateView` for that.
         """
+        assert self.partners is not None
         return {
             "phase": self.phase.value,
             "trump": self.trump.code,
@@ -86,93 +83,85 @@ class GameState:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "GameState":
-        players = [Player.from_dict(p) for p in d["players"]]
+    def from_dict(cls, d: dict[str, Any]) -> GameState:
+        players = tuple(Player.from_dict(p) for p in d["players"])
         by_id = {p.id: p for p in players}
 
         hands: dict[Player, Deck] = {
             by_id[int(pid)]: Deck.from_list(cards) for pid, cards in d["hands"].items()
         }
         pile = Deck.from_list(d["pile"], allow_reorder=False)
-        pile_play = [Player.from_dict(p) for p in d["pile_play"]]
-        tricks = [cast(Trick, tuple(Card.from_dict(c) for c in trick)) for trick in d["tricks"]]
+        pile_play = tuple(Player.from_dict(p) for p in d["pile_play"])
+        tricks = tuple(
+            cast(Trick, tuple(Card.from_dict(c) for c in trick)) for trick in d["tricks"]
+        )
         trick_owner = {int(k): TeamID(int(v)) for k, v in d["trick_owner"].items()}
-        partners = Partners.from_dict(players, d["partners"])
-        events: list[BaseEvent] = [event_from_dict(e) for e in d["events"]]
+        partners = Partners.from_dict(list(players), d["partners"])
+        events: tuple[BaseEvent, ...] = tuple(event_from_dict(e) for e in d["events"])
 
         dealer = Player.from_dict(d["dealer"]) if d.get("dealer") is not None else None
         bid_winner = Player.from_dict(d["bid_winner"]) if d.get("bid_winner") is not None else None
 
-        state = cls.__new__(cls)
-        state.dealer = dealer
-        state.bid_winner = bid_winner
-        state.players = players
-        state.hands = hands
-        state.trump = Suit.from_code(d["trump"])
-        state.partner_ace = Suit.from_code(d["partner_ace"])
-        state.partner_ace_revealed = bool(d["partner_ace_revealed"])
-        state.partners = partners
-        state.pile = pile
-        state.pile_play = pile_play
-        state.tricks = tricks
-        state.trick_owner = trick_owner
-        state.events = events
-        state.turn = int(d["turn"])
-        state.phase = Phase(d["phase"])
-        # Not persisted across roundtrip yet:
-        state.kitty = None
-        return state
+        return cls(
+            players=players,
+            dealer=dealer,
+            bid_winner=bid_winner,
+            hands=hands,
+            trump=Suit.from_code(d["trump"]),
+            partner_ace=Suit.from_code(d["partner_ace"]),
+            partner_ace_revealed=bool(d["partner_ace_revealed"]),
+            partners=partners,
+            pile=pile,
+            pile_play=pile_play,
+            tricks=tricks,
+            trick_owner=trick_owner,
+            events=events,
+            turn=int(d["turn"]),
+            phase=Phase(d["phase"]),
+        )
 
 
 class GameStateView:
-    """
-    Represents one players view of the current state of the game.
-    """
+    """Per-player redacted view. Constructed on demand; not stored in state."""
 
-    def __init__(self, state, player):
+    def __init__(self, state: GameState, player: Player) -> None:
         self.state = state
         self.player = player
 
     @property
-    def turn(self):
+    def turn(self) -> int:
         return self.state.turn
 
     @property
-    def current_player(self):
+    def current_player(self) -> Player:
         return self.state.current_player
 
     @property
-    def trump(self):
+    def trump(self) -> Suit:
         return self.state.trump
 
     @property
-    def partner_ace(self):
+    def partner_ace(self) -> Suit:
         return self.state.partner_ace
 
     @property
-    def pile(self):
+    def pile(self) -> Deck:
         return self.state.pile
 
     @property
-    def hand(self):
+    def hand(self) -> Deck:
         return self.state.hands[self.player]
 
     @property
-    def other_players(self):
+    def other_players(self) -> dict[Player, Deck]:
         players = tuple(p for p in self.state.players if p != self.player)
-
-        hands = {}
-
-        for p in players:
-            num_cards = len(self.state.hands[p].cards)
-            hands[p] = Deck([Card.unknown] * num_cards)
-
-        return hands
+        return {p: Deck([Card.unknown] * len(self.state.hands[p].cards)) for p in players}
 
     @property
-    def partners(self):
+    def partners(self) -> tuple[Player, ...]:
         if not self.state.partner_ace_revealed:
-            return tuple([])
+            return ()
+        assert self.state.partners is not None
         team_id = self.state.partners.team_id(self.player)
         members = self.state.partners.team_members(team_id)
         members.remove(self.player)
@@ -183,11 +172,10 @@ class GameStateView:
 
         Exposes:
           - phase, trump, partner_ace (+ revealed flag), dealer, bid_winner
-          - own hand fully; other players' hand *sizes* only (cards redacted
-            via `Card.unknown` in `other_players`)
+          - own hand fully; other players' hand *sizes* only
           - public pile, pile_play order, collected tricks, trick_owner map
           - partners *only if* `partner_ace_revealed` — via `self.partners`
-          - full event log from `event_cursor` onward
+          - event log from `event_cursor` onward
 
         `event_cursor` lets a client poll incrementally: pass the
         `event_cursor_next` from the previous call. Default 0 = full log.

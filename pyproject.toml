@@ -85,10 +85,6 @@ exclude = [
     "whist/game/scoring.py",
     # Rewritten in phase 12 (gym env + AI):
     "whist/game/ai.py",
-    # Phase 4 converts these to frozen dataclasses + pure reducer; deferring
-    # until then so the pre-refactor None-default shape doesn't noise up mypy.
-    "whist/game/state.py",
-    "whist/game/game.py",
 ]
 
 [[tool.mypy.overrides]]

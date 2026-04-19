@@ -1,109 +1,136 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import product
+from random import Random
+from typing import Any
 
 from ..cards import Card, Deck, Rank, Suit, suits
 from ..errors import IllegalAction, IllegalPhase
 from .actions import BaseAction, CallAction, PlayAction
 from .bids import Call
-from .events import ActionTakenEvent, TrickTakenEvent
+from .partners import Partners, TeamID
 from .phase import Phase
-from .player import create_default_players
+from .player import Player, create_default_players
+from .reducer import apply
 from .ruleset import Ruleset
-from .state import GameState, Partners
+from .state import GameState
 from .tableround import TableRound
 
 
 @dataclass
 class Game:
-    """
-    Represents the game logic for a single game (dealing, bidding and 13 tricks)
+    """Ergonomic mutating wrapper over the pure reducer.
+
+    `Game` keeps a single `GameState` that it replaces atomically on each
+    `take_action`. The underlying transition is computed by `reducer.apply`,
+    so test code and RL training can skip the wrapper and call `apply`
+    directly for deterministic replay.
     """
 
-    state: GameState = None
-    # Reference only in phase 3; not yet consulted. Phases 6+ switch on this.
-    ruleset: Ruleset = None
+    state: GameState | None = None
+    ruleset: Ruleset | None = None
+    seed: int | None = None
+    _rng: Random = field(default_factory=Random, repr=False, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.ruleset is None:
             self.ruleset = Ruleset.petersmakker()
+        if self.seed is not None:
+            self._rng = Random(self.seed)
         if self.state is None:
             self.state = self.initial_state()
 
-    def initial_state(self, **settings):
-        players = settings.get("players")
+    def initial_state(self, **settings: Any) -> GameState:
+        players_list = settings.get("players")
 
-        if players is None:
-            players = create_default_players()
+        if players_list is None:
+            players_list = create_default_players()
 
-        # Initially each player starts with an empty hand
+        players: tuple[Player, ...] = tuple(players_list)
         hands = {p: Deck.empty() for p in players}
+        partners = Partners(list(players))
 
-        # Initially, we don't know who are partners.
-        partners = Partners(players)
-
-        dealer_index = settings.get("dealer_index", 0)
+        dealer_index = int(settings.get("dealer_index", 0))
         dealer = players[dealer_index]
 
-        turn = settings.get("turn", 0)
+        turn = int(settings.get("turn", 0))
 
         return GameState(
-            dealer=dealer,
             players=players,
+            dealer=dealer,
             hands=hands,
             partners=partners,
             turn=turn,
         )
 
-    def deal(self):
-        self.state.phase = Phase.DEALING
+    def deal(self) -> None:
+        assert self.state is not None
 
         deck = Deck.full_deck()
-        deck.shuffle()
+        deck.shuffle(rng=self._rng)
 
         hand_size = 13
-        assert len(self.state.players) == 4
+        if len(self.state.players) != 4:
+            raise IllegalAction("deal expects exactly 4 players")
 
-        tableround = TableRound(self.state.dealer, self.state.players)
+        assert self.state.dealer is not None
+        tableround = TableRound(self.state.dealer, list(self.state.players))
 
+        new_hands: dict[Player, Deck] = {}
+        deck_cards = list(deck.cards)
         for p in tableround:
-            hand = self.state.hands[p]
-            for _ in range(hand_size):
-                card = deck.cards.pop()
-                hand.give(card, sort=False)
+            cards_for_p = [deck_cards.pop() for _ in range(hand_size)]
+            hand = Deck(cards_for_p)
             hand.sort()
+            new_hands[p] = hand
 
-        self.state.kitty = Deck.from_deck(deck)
+        kitty = Deck(deck_cards)
 
-        self.state.phase = Phase.CALLING
+        caller = next(iter(TableRound(self.state.dealer, list(self.state.players))))
+        turn = self.state.players.index(caller)
 
-        caller = next(iter(TableRound(self.state.dealer, self.state.players)))
-        self.bid_winner = caller
-        self.state.turn = self.state.players.index(self.bid_winner)
+        self.state = self.state.replace(
+            phase=Phase.CALLING,
+            hands=new_hands,
+            kitty=kitty,
+            bid_winner=caller,
+            turn=turn,
+        )
 
     @property
-    def has_ended(self):
+    def has_ended(self) -> bool:
+        assert self.state is not None
         hand_size = 13
         return len(self.state.tricks) >= hand_size
 
     @property
-    def current_player(self):
+    def current_player(self) -> Player:
+        assert self.state is not None
         return self.state.current_player
 
-    def valid_actions(self, player):
+    @property
+    def bid_winner(self) -> Player | None:
+        """Kept for back-compat — `state.bid_winner` is the source of truth."""
+        assert self.state is not None
+        return self.state.bid_winner
+
+    def valid_actions(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        state = self.state
+
         if player != self.current_player:
             return []
 
-        if self.state.phase == Phase.CALLING:
+        if state.phase == Phase.CALLING:
             return [
                 CallAction(Call(trump, partner_ace)) for trump, partner_ace in product(suits, suits)
             ]
 
-        if self.state.phase == Phase.PLAYING:
-            hand = self.state.hands[player]
-            pile = self.state.pile
+        if state.phase == Phase.PLAYING:
+            hand = state.hands[player]
+            pile = state.pile
 
             if len(pile) == 0:
                 return [PlayAction(card) for card in hand]
@@ -113,8 +140,8 @@ class Game:
             if first_card == Card.joker:
                 suits_from_hand = list(hand)
             else:
-                if first_card.suit == self.state.partner_ace:
-                    partner_ace = Card(self.state.partner_ace, Rank.Ace)
+                if first_card.suit == state.partner_ace:
+                    partner_ace = Card(state.partner_ace, Rank.Ace)
                     if partner_ace in hand:
                         return [PlayAction(partner_ace)]
 
@@ -125,82 +152,60 @@ class Game:
             # Renons
             return [PlayAction(card) for card in hand]
 
-        raise IllegalPhase(f"valid_actions: no dispatch for phase {self.state.phase!r}")
+        raise IllegalPhase(f"valid_actions: no dispatch for phase {state.phase!r}")
 
-    def is_valid_action(self, player, action: PlayAction):
+    def is_valid_action(self, player: Player, action: BaseAction) -> bool:
         if player != self.current_player:
             return False
-
         return action in self.valid_actions(player)
 
-    def take_action(self, player, action):
+    def take_action(self, player: Player, action: BaseAction) -> bool:
+        assert self.state is not None
         if not isinstance(action, BaseAction):
             raise TypeError(f"Not an action: {action}")
 
-        self.state.events.append(ActionTakenEvent(player, action))
-
-        if isinstance(action, CallAction):
-            self.state.trump = action.call.trump
-            self.state.partner_ace = action.call.partner_ace
-
-            partner_ace_player = self._determine_partner_ace_player()
-            self.state.partners.bisect(self.bid_winner, partner_ace_player)
-
-            self.state.phase = Phase.PLAYING
-        elif isinstance(action, PlayAction):
-            state = self.state
-            hand = state.hands[player]
-            hand.take(action.card)
-
-            pile = state.pile
-
-            if len(pile) == 0:
-                state.pile_suit = action.card.suit
-
-            pile.give(action.card)
-            state.pile_play.append(player)
-
-            # If the partner ace was played, assign partners
-            partner_ace = Card(self.state.partner_ace, Rank.Ace)
-            if action.card == partner_ace:
-                self.state.partner_ace_revealed = True
-
-            if len(pile) == state.num_players:
-                # Score trick
-                card_scores = self._score_pile(pile)
-
-                # Determine winning team
-                trick_winner = self._assign_trick(self.state.pile_play, card_scores)
-                team_id = self.state.partners.team_id(trick_winner)
-
-                # Add trick to list of tricks
-                trick = pile.to_trick()
-                trick_index = len(state.tricks)
-                state.tricks.append(trick)
-                state.trick_owner[trick_index] = team_id
-
-                # Reset round
-                state.round_reset()
-
-                self.state.events.append(TrickTakenEvent(trick_winner, team_id, trick))
-
-                state.turn = state.players.index(trick_winner)
-
-            else:
-                state.turn = (state.turn + 1) % state.num_players
-        else:
-            raise IllegalAction(f"Unhandled action type: {action}")
-
+        new_state, _events = apply(self.state, action, rng=self._rng)
+        self.state = new_state
         return True
 
-    def _score_pile(self, pile) -> list:
+    def get_scoreboard(self) -> dict[tuple[Player, ...], int]:
+        assert self.state is not None
+        assert self.state.partners is not None
+
+        scores: Counter[TeamID] = Counter()
+        for team_id in self.state.trick_owner.values():
+            scores[team_id] += 1
+
+        scoreboard: dict[tuple[Player, ...], int] = {}
+        for team_id, score in scores.items():
+            members = tuple(self.state.partners.team_members(team_id))
+            scoreboard[members] = score
+
+        return scoreboard
+
+    # Used by `take_action` — kept on the class so phase-6 can extend without
+    # reshuffling call sites. The reducer re-implements the same logic.
+    def _determine_partner_ace_player(self) -> Player | None:
+        assert self.state is not None
+        partner_ace_card = Card(self.state.partner_ace, Rank.Ace)
+        for player in self.state.players:
+            hand = self.state.hands[player]
+            for card in hand:
+                if card == partner_ace_card:
+                    return player
+        return None
+
+    # Kept for CLI rendering until phase 11. The reducer owns scoring
+    # internally via `reducer._score_pile`.
+    def _score_pile(self, pile: Deck) -> list[int]:
+        assert self.state is not None
         if len(pile) == 0:
-            return {}
+            return []
 
         first_card = pile.cards[0]
         valid_trump = self.state.trump is not Suit.Unknown
 
-        card_scores = []
+        card_scores: list[int] = []
         for card in pile:
             value = card.rank.value
             if valid_trump and card.suit is self.state.trump:
@@ -214,31 +219,6 @@ class Game:
 
         return card_scores
 
-    def _assign_trick(self, pile_play, scores):
+    def _assign_trick(self, pile_play: list[Player], scores: list[int]) -> Player:
         _, winner = max(zip(scores, pile_play, strict=True))
         return winner
-
-    def _determine_partner_ace_player(self):
-        partner_ace_card = Card(self.state.partner_ace, Rank.Ace)
-
-        for player in self.state.players:
-            hand = self.state.hands[player]
-            for card in hand:
-                if card == partner_ace_card:
-                    return player
-
-        return None
-
-    def get_scoreboard(self):
-        scores = Counter()
-
-        for _trick_index, team_id in self.state.trick_owner.items():
-            scores[team_id] += 1
-
-        scoreboard = {}
-
-        for team_id, score in scores.items():
-            members = tuple(self.state.partners.team_members(team_id))
-            scoreboard[members] = score
-
-        return scoreboard

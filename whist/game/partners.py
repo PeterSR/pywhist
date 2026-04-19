@@ -1,20 +1,12 @@
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from itertools import count
 from typing import Any, NewType
 
 from .player import Player
 
 Team = list[Player]
 TeamID = NewType("TeamID", int)
-
-_team_id_counter = count(1)
-
-
-def _fresh_team_id() -> TeamID:
-    """Return a process-unique `TeamID`. Used to seed singleton teams."""
-    return TeamID(next(_team_id_counter))
 
 
 @dataclass
@@ -24,8 +16,11 @@ class Partners:
 
     def __post_init__(self) -> None:
         if not self.team_id_assignment:
-            # Give each player their own team
-            self.team_id_assignment = {player: _fresh_team_id() for player in self.players}
+            # Seed each player into their own singleton team, keyed by the
+            # player's id. Deterministic across processes — no global counter.
+            # Post-`bisect`/`join` the surviving team ids are the min
+            # player-id in each resulting team.
+            self.team_id_assignment = {player: TeamID(player.id) for player in self.players}
 
     def join(self, *players: Player) -> None:
         if len(players) == 0:
@@ -48,6 +43,18 @@ class Partners:
         team_2_players = [p for p in self.players if p not in team_1_players]
         self.join(*team_1_players)
         self.join(*team_2_players)
+
+    def bisected(self, *team_1_players: Player) -> "Partners":
+        """Non-mutating variant of `bisect` used by the pure reducer."""
+        new = Partners(list(self.players), dict(self.team_id_assignment))
+        new.bisect(*team_1_players)
+        return new
+
+    def isolated(self, player: Player) -> "Partners":
+        """Non-mutating variant of `isolate` used by the pure reducer."""
+        new = Partners(list(self.players), dict(self.team_id_assignment))
+        new.isolate(player)
+        return new
 
     def team_id(self, player: Player) -> TeamID:
         return self.team_id_assignment[player]
