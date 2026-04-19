@@ -1,6 +1,12 @@
-from dataclasses import dataclass
+"""Session-level state. One `MatchState` per session; many `GameState`s are
+played over its lifetime (one per hand).
+"""
 
-from ..game.player import PlayerID
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from ..game.player import Player, PlayerID
 from ..game.ruleset import Ruleset
 from ..game.state import GameState
 from .scoreboard import Scoreboard
@@ -9,25 +15,20 @@ from .session import SessionConfig
 
 @dataclass
 class MatchState:
-    """
-    Represents the state for a match of n games
-    """
+    registered: tuple[Player, ...] = ()
+    scoreboard: Scoreboard = field(default_factory=Scoreboard)
+    ruleset: Ruleset = field(default_factory=Ruleset.petersmakker)
+    session_config: SessionConfig = field(default_factory=SessionConfig)
+    hand_count: int = 0
+    current_hand: GameState | None = None
+    next_dealer: Player | None = None
+    next_sitting_out: frozenset[Player] = frozenset()
 
-    game_state: GameState = None
-    game_count: int = 0
-    max_game_count: int = -1  # -1 for infinite
-    scoreboard: Scoreboard = None
-    ruleset: Ruleset = None
-    session_config: SessionConfig = None
-
-    def __post_init__(self):
-        if self.scoreboard is None:
-            self.scoreboard = dict()
-        if self.ruleset is None:
-            self.ruleset = Ruleset.petersmakker()
-        if self.session_config is None:
-            self.session_config = SessionConfig()
+    def register_players(self, players: list[Player]) -> None:
+        self.registered = tuple(players)
+        for p in players:
+            self.scoreboard.register(p)
 
     @property
     def players(self) -> list[PlayerID]:
-        return list(self.scoreboard.keys())
+        return list(self.scoreboard.totals.keys())

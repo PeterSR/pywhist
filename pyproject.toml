@@ -77,8 +77,6 @@ exclude = [
     "dist/",
     # Rewritten in phase 11 (CLI rebuild):
     "whist/cli.py",
-    # Rewritten in phase 10 (match layer):
-    "whist/match/",
     # Rewritten in phase 6 (bidding):
     "whist/game/bids.py",
     # Rewritten in phase 12 (gym env + AI):
