@@ -3,26 +3,30 @@
 `apply(state, action, *, rng) -> (new_state, events)` is deterministic given a
 seeded RNG. `Game.take_action` is a thin ergonomic wrapper over `apply`.
 
+Dispatch is phase-first: each `Phase` value has a handler in
+`_PHASE_HANDLERS`. Phases without real logic yet raise `NotImplementedError`
+with a "phase X pending (lands in phase N)" message — this makes the phase
+machine visible (and testable) before the feature logic lands.
+
 Events emitted during an `apply` call are both returned and appended to
 `new_state.events`, so the state alone is sufficient for replay.
-
-This module is phase-4 scope: `PlayAction` and `CallAction` only (the action
-taxonomy that exists today). Phases 5-9 extend the dispatch with auction,
-katten, vip-flip, marker, nolos, and scoring transitions.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from random import Random
 
 from ..cards import Card, Deck, Rank, Suit
 from ..errors import IllegalAction, IllegalPhase
 from .actions import BaseAction, CallAction, PlayAction
-from .events import ActionTakenEvent, BaseEvent, TrickTakenEvent
+from .events import ActionTakenEvent, BaseEvent, PhaseTransitionEvent, TrickTakenEvent
 from .partners import Partners
 from .phase import Phase
 from .player import Player
 from .state import GameState
+
+PhaseHandler = Callable[[GameState, BaseAction], tuple[GameState, tuple[BaseEvent, ...]]]
 
 
 def apply(
@@ -35,17 +39,32 @@ def apply(
     if not isinstance(action, BaseAction):
         raise TypeError(f"Not an action: {action!r}")
 
-    if isinstance(action, CallAction):
-        return _apply_call(state, action)
-    if isinstance(action, PlayAction):
-        return _apply_play(state, action)
-    raise IllegalAction(f"Unhandled action type: {action!r}")
+    handler = _PHASE_HANDLERS.get(state.phase)
+    if handler is None:
+        raise IllegalPhase(f"No reducer handler for phase {state.phase!r}")
+    return handler(state, action)
+
+
+# ---- real handlers --------------------------------------------------------
+
+
+def _handle_calling(
+    state: GameState, action: BaseAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if not isinstance(action, CallAction):
+        raise IllegalAction(f"Expected CallAction in {state.phase!r}, got {type(action).__name__}")
+    return _apply_call(state, action)
+
+
+def _handle_playing(
+    state: GameState, action: BaseAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if not isinstance(action, PlayAction):
+        raise IllegalAction(f"Expected PlayAction in {state.phase!r}, got {type(action).__name__}")
+    return _apply_play(state, action)
 
 
 def _apply_call(state: GameState, action: CallAction) -> tuple[GameState, tuple[BaseEvent, ...]]:
-    if state.phase != Phase.CALLING:
-        raise IllegalPhase(f"CallAction illegal in phase {state.phase!r}")
-
     caller = state.current_player
     trump = action.call.trump
     partner_ace = action.call.partner_ace
@@ -60,20 +79,20 @@ def _apply_call(state: GameState, action: CallAction) -> tuple[GameState, tuple[
         new_partners = state.partners.bisected(caller, partner_player)
 
     action_event = ActionTakenEvent(caller, action)
+    transition = PhaseTransitionEvent(from_phase=state.phase, to_phase=Phase.PLAYING)
+    events: tuple[BaseEvent, ...] = (action_event, transition)
+
     new_state = state.replace(
         trump=trump,
         partner_ace=partner_ace,
         partners=new_partners,
         phase=Phase.PLAYING,
-        events=(*state.events, action_event),
+        events=(*state.events, *events),
     )
-    return new_state, (action_event,)
+    return new_state, events
 
 
 def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[BaseEvent, ...]]:
-    if state.phase != Phase.PLAYING:
-        raise IllegalPhase(f"PlayAction illegal in phase {state.phase!r}")
-
     current_player = state.current_player
 
     new_hand = _deck_without(state.hands[current_player], action.card)
@@ -83,7 +102,6 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
     new_pile = _deck_with_card(state.pile, action.card)
     new_pile_play = (*state.pile_play, current_player)
 
-    # Partner ace revelation.
     partner_ace_card = Card(state.partner_ace, Rank.Ace)
     new_revealed = state.partner_ace_revealed or (action.card == partner_ace_card)
 
@@ -132,7 +150,36 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
     return new_state, events_emitted
 
 
-# ---- helpers ---------------------------------------------------------------
+# ---- stub handlers (feature logic lands in later phases) ------------------
+
+
+def _stub_for_phase(phase: Phase, pending_in: str) -> PhaseHandler:
+    def handler(state: GameState, action: BaseAction) -> tuple[GameState, tuple[BaseEvent, ...]]:
+        _ = state, action
+        raise NotImplementedError(f"phase {phase.value!r} pending (lands in {pending_in})")
+
+    handler.__name__ = f"_stub_{phase.value}"
+    return handler
+
+
+_PHASE_HANDLERS: dict[Phase, PhaseHandler] = {
+    Phase.CALLING: _handle_calling,
+    Phase.PLAYING: _handle_playing,
+    # Stubs — filled in by later phases. Each raises NotImplementedError if an
+    # action reaches it before the feature lands.
+    Phase.DEALING: _stub_for_phase(Phase.DEALING, "phase 6 (auction)"),
+    Phase.BIDDING: _stub_for_phase(Phase.BIDDING, "phase 6 (auction)"),
+    Phase.BANKET: _stub_for_phase(Phase.BANKET, "phase 6 (auction)"),
+    Phase.KATTEN_EXCHANGE: _stub_for_phase(Phase.KATTEN_EXCHANGE, "phase 7 (katten)"),
+    Phase.VIP_FLIP: _stub_for_phase(Phase.VIP_FLIP, "phase 7 (vip-flip)"),
+    Phase.HALVE_TRUMP: _stub_for_phase(Phase.HALVE_TRUMP, "phase 7 (halve)"),
+    Phase.MARKER_PLACEMENT: _stub_for_phase(Phase.MARKER_PLACEMENT, "phase 7 (marker)"),
+    Phase.SCORING: _stub_for_phase(Phase.SCORING, "phase 8 (scoring port)"),
+    Phase.FINISHED: _stub_for_phase(Phase.FINISHED, "phase 8 (scoring port)"),
+}
+
+
+# ---- helpers --------------------------------------------------------------
 
 
 def _deck_without(deck: Deck, card: Card) -> Deck:

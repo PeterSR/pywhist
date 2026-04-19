@@ -5,6 +5,7 @@ from typing import Any
 from ..cards import Card, Trick
 from .actions import BaseAction, action_from_dict
 from .partners import TeamID
+from .phase import Phase
 from .player import Player
 
 
@@ -67,9 +68,33 @@ class TrickTakenEvent(BaseEvent):
         )
 
 
+@dataclass(frozen=True)
+class PhaseTransitionEvent(BaseEvent):
+    from_phase: Phase
+    to_phase: Phase
+
+    def __str__(self) -> str:
+        return f"Phase: {self.from_phase.value} → {self.to_phase.value}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "phase_transition",
+            "from_phase": self.from_phase.value,
+            "to_phase": self.to_phase.value,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> "PhaseTransitionEvent":
+        return cls(
+            from_phase=Phase(d["from_phase"]),
+            to_phase=Phase(d["to_phase"]),
+        )
+
+
 _EVENT_TAGS: dict[str, type[BaseEvent]] = {
     "action_taken": ActionTakenEvent,
     "trick_taken": TrickTakenEvent,
+    "phase_transition": PhaseTransitionEvent,
 }
 
 

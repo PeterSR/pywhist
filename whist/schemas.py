@@ -58,7 +58,12 @@ class TrickTakenEventSchema(msgspec.Struct, tag="trick_taken", tag_field="type")
     trick: list[CardSchema]
 
 
-EventSchema = ActionTakenEventSchema | TrickTakenEventSchema
+class PhaseTransitionEventSchema(msgspec.Struct, tag="phase_transition", tag_field="type"):
+    from_phase: str
+    to_phase: str
+
+
+EventSchema = ActionTakenEventSchema | TrickTakenEventSchema | PhaseTransitionEventSchema
 
 
 class RulesetSchema(msgspec.Struct):
@@ -98,6 +103,7 @@ __all__ = [
     "CallSchema",
     "CardSchema",
     "EventSchema",
+    "PhaseTransitionEventSchema",
     "PlayActionSchema",
     "PlayerSchema",
     "RulesetSchema",

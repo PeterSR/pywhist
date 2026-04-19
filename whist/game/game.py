@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from itertools import product
 from random import Random
-from typing import Any
+from typing import Any, ClassVar
 
 from ..cards import Card, Deck, Rank, Suit, suits
 from ..errors import IllegalAction, IllegalPhase
@@ -123,36 +124,51 @@ class Game:
         if player != self.current_player:
             return []
 
-        if state.phase == Phase.CALLING:
-            return [
-                CallAction(Call(trump, partner_ace)) for trump, partner_ace in product(suits, suits)
-            ]
+        handler = self._VALID_ACTIONS_DISPATCH.get(state.phase)
+        if handler is None:
+            raise IllegalPhase(f"valid_actions: no dispatch for phase {state.phase!r}")
+        return handler(self, player)
 
-        if state.phase == Phase.PLAYING:
-            hand = state.hands[player]
-            pile = state.pile
+    def _valid_actions_calling(self, player: Player) -> list[BaseAction]:
+        return [
+            CallAction(Call(trump, partner_ace)) for trump, partner_ace in product(suits, suits)
+        ]
 
-            if len(pile) == 0:
-                return [PlayAction(card) for card in hand]
+    def _valid_actions_playing(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        state = self.state
+        hand = state.hands[player]
+        pile = state.pile
 
-            first_card = pile.cards[0]
-
-            if first_card == Card.joker:
-                suits_from_hand = list(hand)
-            else:
-                if first_card.suit == state.partner_ace:
-                    partner_ace = Card(state.partner_ace, Rank.Ace)
-                    if partner_ace in hand:
-                        return [PlayAction(partner_ace)]
-
-                suits_from_hand = [card for card in hand if card.suit is first_card.suit]
-
-            if len(suits_from_hand) > 0:
-                return [PlayAction(card) for card in suits_from_hand]
-            # Renons
+        if len(pile) == 0:
             return [PlayAction(card) for card in hand]
 
-        raise IllegalPhase(f"valid_actions: no dispatch for phase {state.phase!r}")
+        first_card = pile.cards[0]
+
+        if first_card == Card.joker:
+            suits_from_hand = list(hand)
+        else:
+            if first_card.suit == state.partner_ace:
+                partner_ace = Card(state.partner_ace, Rank.Ace)
+                if partner_ace in hand:
+                    return [PlayAction(partner_ace)]
+
+            suits_from_hand = [card for card in hand if card.suit is first_card.suit]
+
+        if len(suits_from_hand) > 0:
+            return [PlayAction(card) for card in suits_from_hand]
+        # Renons
+        return [PlayAction(card) for card in hand]
+
+    @staticmethod
+    def _valid_actions_none(_self: Game, _player: Player) -> list[BaseAction]:
+        """Stub handler — phase has no player-facing actions yet."""
+        return []
+
+    # Populated below the class body — references instance methods so must
+    # sit on the class, not inline. ClassVar so @dataclass doesn't treat it
+    # as a field.
+    _VALID_ACTIONS_DISPATCH: ClassVar[dict[Phase, Callable[[Game, Player], list[BaseAction]]]]
 
     def is_valid_action(self, player: Player, action: BaseAction) -> bool:
         if player != self.current_player:
@@ -222,3 +238,22 @@ class Game:
     def _assign_trick(self, pile_play: list[Player], scores: list[int]) -> Player:
         _, winner = max(zip(scores, pile_play, strict=True))
         return winner
+
+
+# Populate the dispatch table after the class body so references can point at
+# instance methods. Every `Phase` value must appear so the test suite catches
+# drift when new phases are added.
+Game._VALID_ACTIONS_DISPATCH = {
+    Phase.CALLING: Game._valid_actions_calling,
+    Phase.PLAYING: Game._valid_actions_playing,
+    # No player-facing actions during these phases (for now):
+    Phase.DEALING: Game._valid_actions_none,
+    Phase.BIDDING: Game._valid_actions_none,
+    Phase.BANKET: Game._valid_actions_none,
+    Phase.KATTEN_EXCHANGE: Game._valid_actions_none,
+    Phase.VIP_FLIP: Game._valid_actions_none,
+    Phase.HALVE_TRUMP: Game._valid_actions_none,
+    Phase.MARKER_PLACEMENT: Game._valid_actions_none,
+    Phase.SCORING: Game._valid_actions_none,
+    Phase.FINISHED: Game._valid_actions_none,
+}

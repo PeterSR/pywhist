@@ -30,12 +30,13 @@ def test_take_action_rejects_non_action():
         game.take_action(game.current_player, "not an action")
 
 
-def test_valid_actions_raises_on_unsupported_phase():
+def test_valid_actions_returns_empty_during_dealing():
+    # Phase 5 turned the phase machine into a dispatch table: phases with no
+    # player-facing actions return `[]` rather than raising. DEALING is one of
+    # those (no one acts during the deal).
     game = Game()
-    # Brand-new game is in DEALING phase; valid_actions has no dispatch there.
     assert game.state.phase == Phase.DEALING
-    with pytest.raises(IllegalPhase):
-        game.valid_actions(game.current_player)
+    assert game.valid_actions(game.current_player) == []
 
 
 def test_phase_strenum_roundtrips_as_string():
