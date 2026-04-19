@@ -8,16 +8,29 @@ from random import Random
 from typing import Any, ClassVar
 
 from ..cards import Card, Deck, Rank, Suit, suits
-from ..errors import IllegalAction, IllegalPhase
-from .actions import BaseAction, CallAction, PlayAction
-from .bids import Call
+from ..errors import IllegalPhase
+from .actions import (
+    BanketAction,
+    BanketSkipAction,
+    BaseAction,
+    BidAction,
+    CallAction,
+    DetKanJegSelvAction,
+    GaaMedAction,
+    JernhaandAction,
+    JernhaandDeclineAction,
+    KingCallAction,
+    PassAction,
+    PlayAction,
+    ReBanketAction,
+)
+from .bids import BID_LADDER, BidModifier, Call, NoloBid, NumberBid, bid_rank
 from .partners import Partners, TeamID
 from .phase import Phase
 from .player import Player, create_default_players
-from .reducer import apply
+from .reducer import _perform_deal, apply
 from .ruleset import Ruleset
 from .state import GameState
-from .tableround import TableRound
 
 
 @dataclass
@@ -64,41 +77,16 @@ class Game:
             hands=hands,
             partners=partners,
             turn=turn,
+            seed=self.seed,
         )
 
     def deal(self) -> None:
         assert self.state is not None
-
-        deck = Deck.full_deck()
-        deck.shuffle(rng=self._rng)
-
-        hand_size = 13
-        if len(self.state.players) != 4:
-            raise IllegalAction("deal expects exactly 4 players")
-
-        assert self.state.dealer is not None
-        tableround = TableRound(self.state.dealer, list(self.state.players))
-
-        new_hands: dict[Player, Deck] = {}
-        deck_cards = list(deck.cards)
-        for p in tableround:
-            cards_for_p = [deck_cards.pop() for _ in range(hand_size)]
-            hand = Deck(cards_for_p)
-            hand.sort()
-            new_hands[p] = hand
-
-        kitty = Deck(deck_cards)
-
-        caller = next(iter(TableRound(self.state.dealer, list(self.state.players))))
-        turn = self.state.players.index(caller)
-
-        self.state = self.state.replace(
-            phase=Phase.CALLING,
-            hands=new_hands,
-            kitty=kitty,
-            bid_winner=caller,
-            turn=turn,
-        )
+        # The reducer's _perform_deal handles: rng shuffle, hand dealing,
+        # jernhaand detection, DealEvent + JernhaandOptionEvent emission, and
+        # the DEALING → BIDDING transition when no jernhaand pending.
+        new_state, events = _perform_deal(self.state, rng=self._rng)
+        self.state = new_state.replace(events=(*self.state.events, *events))
 
     @property
     def has_ended(self) -> bool:
@@ -122,6 +110,10 @@ class Game:
         state = self.state
 
         if player != self.current_player:
+            # DEALING-with-jernhaand is the one phase where non-current players
+            # may still act (anyone eligible can declare).
+            if state.phase == Phase.DEALING and player in state.jernhaand_pending:
+                return [JernhaandDeclineAction(player), JernhaandAction(player)]
             return []
 
         handler = self._VALID_ACTIONS_DISPATCH.get(state.phase)
@@ -129,10 +121,106 @@ class Game:
             raise IllegalPhase(f"valid_actions: no dispatch for phase {state.phase!r}")
         return handler(self, player)
 
+    # ---- per-phase helpers -------------------------------------------
+
+    def _valid_actions_dealing(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        if player in self.state.jernhaand_pending:
+            return [JernhaandDeclineAction(player), JernhaandAction(player)]
+        return []
+
+    def _valid_actions_bidding(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        state = self.state
+        a = state.auction
+
+        actions: list[BaseAction] = []
+
+        in_tilbage = (
+            a.top_bid is not None
+            and a.top_bidder != player
+            and any(bidder == player for bidder, _ in a.bids)
+            and player not in a.passed
+        )
+
+        if in_tilbage:
+            # Tilbage: pass first (yield), then det-kan-jeg-selv, then overcalls.
+            actions.append(PassAction())
+            actions.append(DetKanJegSelvAction())
+            actions.extend(self._enumerate_higher_bids(a.top_bid))
+            return actions
+
+        if a.top_bid is None:
+            # Opening bidder — encourage a bid as actions[0] so the auction
+            # doesn't all-pass into a redeal loop under smoke-test drivers.
+            actions.append(BidAction(NumberBid(7, BidModifier.GODE), trump=None))
+            actions.append(PassAction())
+            actions.extend(self._enumerate_higher_bids(None)[1:])  # drop duplicate first
+            return actions
+
+        # Forward bidder against an existing top bid: pass first (keeps
+        # smoke-tests from overcalling forever), then overcalls.
+        actions.append(PassAction())
+        if isinstance(a.top_bid, (NumberBid, NoloBid)):
+            if isinstance(a.top_bid, NumberBid) and a.top_bid.modifier == BidModifier.VIP:
+                actions.append(GaaMedAction())
+            if isinstance(a.top_bid, NoloBid):
+                actions.append(GaaMedAction())
+        actions.extend(self._enumerate_higher_bids(a.top_bid))
+        return actions
+
+    def _enumerate_higher_bids(self, top_bid: Any) -> list[BaseAction]:
+        start = 0 if top_bid is None else bid_rank(top_bid) + 1
+        out: list[BaseAction] = []
+        for b in BID_LADDER[start:]:
+            if isinstance(b, NumberBid) and b.modifier == BidModifier.ALMINDELIG:
+                # Almindelig needs trump named. Expose one per non-clubs suit;
+                # klør gets auto-rewritten to GODE by the reducer, so include
+                # it for test coverage but skip for default ordering here.
+                for trump in (Suit.Heart, Suit.Diamond, Suit.Spade, Suit.Club):
+                    out.append(BidAction(b, trump=trump))
+            else:
+                out.append(BidAction(b, trump=None))
+        return out
+
     def _valid_actions_calling(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        _ = player
+        if self.state.king_call_required:
+            # All (trump, king-suit) combos where trump != king_suit.
+            calls: list[BaseAction] = []
+            for trump, king in product(suits, suits):
+                if trump == king:
+                    continue
+                calls.append(KingCallAction(trump=trump, king_suit=king))
+            return calls
+
         return [
-            CallAction(Call(trump, partner_ace)) for trump, partner_ace in product(suits, suits)
+            CallAction(Call(trump, partner_ace))
+            for trump, partner_ace in product(suits, suits)
+            if trump != partner_ace
         ]
+
+    def _valid_actions_banket(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        assert self.state.partners is not None
+        declarer = self.state.bid_winner
+        assert declarer is not None
+        declarer_team = self.state.partners.team_id(declarer)
+        player_team = self.state.partners.team_id(player)
+
+        if player_team == declarer_team:
+            # Declarer side: skip by default; re-banket only if a banket has landed.
+            actions: list[BaseAction] = [BanketSkipAction()]
+            if self.state.banket.banket_by is not None and self.state.banket.re_banket_by is None:
+                actions.append(ReBanketAction())
+            return actions
+
+        # Opponent side: skip first, then optional banket.
+        actions_opp: list[BaseAction] = [BanketSkipAction()]
+        if self.state.banket.banket_by is None:
+            actions_opp.append(BanketAction())
+        return actions_opp
 
     def _valid_actions_playing(self, player: Player) -> list[BaseAction]:
         assert self.state is not None
@@ -157,21 +245,23 @@ class Game:
 
         if len(suits_from_hand) > 0:
             return [PlayAction(card) for card in suits_from_hand]
-        # Renons
         return [PlayAction(card) for card in hand]
 
     @staticmethod
     def _valid_actions_none(_self: Game, _player: Player) -> list[BaseAction]:
-        """Stub handler — phase has no player-facing actions yet."""
+        """Stub — phase has no player-facing actions yet."""
         return []
 
-    # Populated below the class body — references instance methods so must
-    # sit on the class, not inline. ClassVar so @dataclass doesn't treat it
-    # as a field.
     _VALID_ACTIONS_DISPATCH: ClassVar[dict[Phase, Callable[[Game, Player], list[BaseAction]]]]
 
     def is_valid_action(self, player: Player, action: BaseAction) -> bool:
         if player != self.current_player:
+            # Jernhaand exception: anyone eligible can declare.
+            assert self.state is not None
+            if self.state.phase == Phase.DEALING and isinstance(
+                action, (JernhaandAction, JernhaandDeclineAction)
+            ):
+                return action.player in self.state.jernhaand_pending
             return False
         return action in self.valid_actions(player)
 
@@ -199,57 +289,14 @@ class Game:
 
         return scoreboard
 
-    # Used by `take_action` — kept on the class so phase-6 can extend without
-    # reshuffling call sites. The reducer re-implements the same logic.
-    def _determine_partner_ace_player(self) -> Player | None:
-        assert self.state is not None
-        partner_ace_card = Card(self.state.partner_ace, Rank.Ace)
-        for player in self.state.players:
-            hand = self.state.hands[player]
-            for card in hand:
-                if card == partner_ace_card:
-                    return player
-        return None
 
-    # Kept for CLI rendering until phase 11. The reducer owns scoring
-    # internally via `reducer._score_pile`.
-    def _score_pile(self, pile: Deck) -> list[int]:
-        assert self.state is not None
-        if len(pile) == 0:
-            return []
-
-        first_card = pile.cards[0]
-        valid_trump = self.state.trump is not Suit.Unknown
-
-        card_scores: list[int] = []
-        for card in pile:
-            value = card.rank.value
-            if valid_trump and card.suit is self.state.trump:
-                value += 100
-            elif card.suit is not first_card.suit:
-                value -= 100
-            card_scores.append(value)
-
-        if first_card == Card.joker:
-            card_scores[0] += 1000
-
-        return card_scores
-
-    def _assign_trick(self, pile_play: list[Player], scores: list[int]) -> Player:
-        _, winner = max(zip(scores, pile_play, strict=True))
-        return winner
-
-
-# Populate the dispatch table after the class body so references can point at
-# instance methods. Every `Phase` value must appear so the test suite catches
-# drift when new phases are added.
+# Populate dispatch table after class body (ClassVar → @dataclass skips it).
 Game._VALID_ACTIONS_DISPATCH = {
+    Phase.DEALING: Game._valid_actions_dealing,
+    Phase.BIDDING: Game._valid_actions_bidding,
+    Phase.BANKET: Game._valid_actions_banket,
     Phase.CALLING: Game._valid_actions_calling,
     Phase.PLAYING: Game._valid_actions_playing,
-    # No player-facing actions during these phases (for now):
-    Phase.DEALING: Game._valid_actions_none,
-    Phase.BIDDING: Game._valid_actions_none,
-    Phase.BANKET: Game._valid_actions_none,
     Phase.KATTEN_EXCHANGE: Game._valid_actions_none,
     Phase.VIP_FLIP: Game._valid_actions_none,
     Phase.HALVE_TRUMP: Game._valid_actions_none,

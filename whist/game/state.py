@@ -1,13 +1,102 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
 from ..cards import Card, Deck, Suit, Trick
+from .bids import Bid, bid_from_dict, bid_to_dict
 from .events import BaseEvent, event_from_dict
 from .partners import Partners, TeamID
 from .phase import Phase
 from .player import Player
+
+
+@dataclass(frozen=True, slots=True)
+class AuctionState:
+    """Running state of the auction while `phase == Phase.BIDDING`.
+
+    `passed` excludes `gaa_med` members — gå-med players forfeit the right
+    to overcall but aren't "passed" in the sense of being out of the
+    contract. See spec §3.3.1.
+    """
+
+    bids: tuple[tuple[Player, Bid], ...] = ()
+    passed: frozenset[Player] = frozenset()
+    current_bidder: Player | None = None
+    top_bid: Bid | None = None
+    top_bidder: Player | None = None
+    gaa_med: tuple[Player, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "bids": [[p.to_dict(), bid_to_dict(b)] for p, b in self.bids],
+            "passed": [p.to_dict() for p in self.passed],
+            "current_bidder": (
+                self.current_bidder.to_dict() if self.current_bidder is not None else None
+            ),
+            "top_bid": bid_to_dict(self.top_bid) if self.top_bid is not None else None,
+            "top_bidder": self.top_bidder.to_dict() if self.top_bidder is not None else None,
+            "gaa_med": [p.to_dict() for p in self.gaa_med],
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> AuctionState:
+        return cls(
+            bids=tuple(
+                (Player.from_dict(entry[0]), bid_from_dict(entry[1])) for entry in d["bids"]
+            ),
+            passed=frozenset(Player.from_dict(p) for p in d["passed"]),
+            current_bidder=(
+                Player.from_dict(d["current_bidder"])
+                if d.get("current_bidder") is not None
+                else None
+            ),
+            top_bid=bid_from_dict(d["top_bid"]) if d.get("top_bid") is not None else None,
+            top_bidder=(
+                Player.from_dict(d["top_bidder"]) if d.get("top_bidder") is not None else None
+            ),
+            gaa_med=tuple(Player.from_dict(p) for p in d["gaa_med"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class BanketState:
+    """Banket / re-banket flags for the active contract."""
+
+    banket_by: Player | None = None
+    re_banket_by: Player | None = None
+    # Players who've already passed on banket — they get one chance.
+    declined: frozenset[Player] = frozenset()
+
+    @property
+    def multiplier(self) -> int:
+        if self.re_banket_by is not None:
+            return 4
+        if self.banket_by is not None:
+            return 2
+        return 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "banket_by": self.banket_by.to_dict() if self.banket_by is not None else None,
+            "re_banket_by": (
+                self.re_banket_by.to_dict() if self.re_banket_by is not None else None
+            ),
+            "declined": [p.to_dict() for p in self.declined],
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> BanketState:
+        return cls(
+            banket_by=(
+                Player.from_dict(d["banket_by"]) if d.get("banket_by") is not None else None
+            ),
+            re_banket_by=(
+                Player.from_dict(d["re_banket_by"]) if d.get("re_banket_by") is not None else None
+            ),
+            declined=frozenset(Player.from_dict(p) for p in d.get("declined", [])),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +129,13 @@ class GameState:
     events: tuple[BaseEvent, ...] = ()
     turn: int = 0
     phase: Phase = Phase.DEALING
+    auction: AuctionState = field(default_factory=AuctionState)
+    banket: BanketState = field(default_factory=BanketState)
+    jernhaand_pending: frozenset[Player] = frozenset()
+    # Declarer holds all 4 aces → next post-auction action is KingCallAction
+    # instead of CallAction. Set by the reducer when the bid closes.
+    king_call_required: bool = False
+    seed: int | None = None
 
     @property
     def round(self) -> int:
@@ -80,6 +176,11 @@ class GameState:
             "trick_owner": {str(k): int(v) for k, v in self.trick_owner.items()},
             "partners": self.partners.to_dict(),
             "events": [e.to_dict() for e in self.events],
+            "auction": self.auction.to_dict(),
+            "banket": self.banket.to_dict(),
+            "jernhaand_pending": [p.to_dict() for p in self.jernhaand_pending],
+            "king_call_required": self.king_call_required,
+            "seed": self.seed,
         }
 
     @classmethod
@@ -102,6 +203,11 @@ class GameState:
         dealer = Player.from_dict(d["dealer"]) if d.get("dealer") is not None else None
         bid_winner = Player.from_dict(d["bid_winner"]) if d.get("bid_winner") is not None else None
 
+        auction = AuctionState.from_dict(d["auction"]) if "auction" in d else AuctionState()
+        banket = BanketState.from_dict(d["banket"]) if "banket" in d else BanketState()
+        jernhaand_pending = frozenset(Player.from_dict(p) for p in d.get("jernhaand_pending", []))
+        seed_val = d.get("seed")
+
         return cls(
             players=players,
             dealer=dealer,
@@ -118,6 +224,11 @@ class GameState:
             events=events,
             turn=int(d["turn"]),
             phase=Phase(d["phase"]),
+            auction=auction,
+            banket=banket,
+            jernhaand_pending=jernhaand_pending,
+            king_call_required=bool(d.get("king_call_required", False)),
+            seed=int(seed_val) if seed_val is not None else None,
         )
 
 

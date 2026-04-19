@@ -16,21 +16,33 @@ from random import Random
 
 import pytest
 
-from whist.game.actions import BaseAction
+from whist.game.actions import BaseAction, JernhaandDeclineAction
 from whist.game.game import Game
+from whist.game.phase import Phase
 from whist.game.reducer import apply
 from whist.game.state import GameState
 
 
-def _play_to_end(game: Game) -> list[BaseAction]:
+def _play_to_end(game: Game, safety: int = 500) -> list[BaseAction]:
     actions_taken: list[BaseAction] = []
-    while not game.has_ended:
+    while not game.has_ended and safety > 0:
+        state = game.state
+        # Handle jernhaand offer — decline to fast-forward.
+        if state.phase == Phase.DEALING and state.jernhaand_pending:
+            p = next(iter(state.jernhaand_pending))
+            action = JernhaandDeclineAction(p)
+            actions_taken.append(action)
+            game.take_action(p, action)
+            safety -= 1
+            continue
         player = game.current_player
         actions = game.valid_actions(player)
-        assert actions, f"no valid actions at phase {game.state.phase!r}"
+        assert actions, f"no valid actions at phase {state.phase!r}"
         action = actions[0]
         actions_taken.append(action)
         game.take_action(player, action)
+        safety -= 1
+    assert safety > 0, f"stuck at phase {game.state.phase!r}"
     return actions_taken
 
 
