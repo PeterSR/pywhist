@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from random import Random
+from typing import Any
 
 from ..cards import Card, Deck, Rank, Suit
 from ..errors import IllegalAction, IllegalPhase, RulesViolation
@@ -37,6 +38,7 @@ from .actions import (
 from .bids import (
     BidModifier,
     NoloBid,
+    NoloContract,
     NumberBid,
     bid_rank,
     rewrite_klor_almindelig,
@@ -48,6 +50,7 @@ from .events import (
     BanketEvent,
     BaseEvent,
     BidWonEvent,
+    CapsizeEvent,
     DealEvent,
     HalveTrumpChosenEvent,
     JernhaandDeclaredEvent,
@@ -59,6 +62,7 @@ from .events import (
     PhaseTransitionEvent,
     ReBanketEvent,
     RedealEvent,
+    ScoreEvent,
     TrickTakenEvent,
     VipFlipEvent,
     VipStoppedEvent,
@@ -66,6 +70,8 @@ from .events import (
 from .partners import Partners
 from .phase import Phase
 from .player import Player
+from .ruleset import Ruleset
+from .scoring import ScoringContext, distribute, is_selvmakker, score_magnitude
 from .state import AuctionState, BanketState, GameState, KattenState
 from .tableround import TableRound
 
@@ -724,6 +730,23 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
 
         new_turn = state.players.index(trick_winner)
 
+        # Last trick? Transition to SCORING → FINISHED inline.
+        if len(new_tricks) >= 13:
+            scoring_events = _compute_scoring(state, new_trick_owner, new_tricks)
+            events_emitted = (*events_emitted, *scoring_events)
+            new_state = state.replace(
+                hands=new_hands,
+                pile=Deck.empty_pile(),
+                pile_play=(),
+                tricks=new_tricks,
+                trick_owner=new_trick_owner,
+                partner_ace_revealed=new_revealed,
+                turn=new_turn,
+                phase=Phase.FINISHED,
+                events=(*state.events, *events_emitted),
+            )
+            return new_state, events_emitted
+
         new_state = state.replace(
             hands=new_hands,
             pile=Deck.empty_pile(),
@@ -967,6 +990,86 @@ def _marker_place(
         ),
     )
     return new_state, (action_event, placed_event, *partner_reveal, transition)
+
+
+def _compute_scoring(
+    pre_trick_state: GameState,
+    trick_owner: dict[int, Any],  # TeamID → int-equivalent
+    tricks: tuple[Any, ...],
+) -> tuple[BaseEvent, ...]:
+    """Compute the hand's score events at trick 13.
+
+    `pre_trick_state` is the state before the final trick collection.
+    `trick_owner` is the fully-populated owner map; `tricks` the full list.
+    """
+    assert pre_trick_state.partners is not None
+    assert pre_trick_state.bid_winner is not None
+
+    declarer = pre_trick_state.bid_winner
+    partners_obj = pre_trick_state.partners
+    declarer_team = partners_obj.team_id(declarer)
+
+    # Count tricks taken by declarer's team.
+    declarer_side_tricks = sum(1 for _tidx, owner in trick_owner.items() if owner == declarer_team)
+
+    # Pull the winning bid from the auction state.
+    auction = pre_trick_state.auction
+    if auction.top_bid is None:
+        # Auction never produced a bid (shouldn't happen post-BIDDING), skip.
+        return ()
+    bid = auction.top_bid
+
+    # tricks_target: from the bid (number = level, nolo = 0 for Ren-variants).
+    if isinstance(bid, NumberBid):
+        tricks_target = bid.level
+    else:
+        ren_contracts = (NoloContract.REN_SOL, NoloContract.REN_BORDLAEGGER)
+        tricks_target = 0 if bid.contract in ren_contracts else 1
+
+    # Selvmakker?
+    selvmakker = is_selvmakker(partners_obj, declarer)
+    partner: Player | None = None
+    if not selvmakker:
+        team_members = partners_obj.team_members(declarer_team)
+        others = [p for p in team_members if p != declarer]
+        partner = others[0] if others else None
+
+    # Ruleset fallback (phase 8 can't yet see Game.ruleset from reducer).
+    ruleset = Ruleset.petersmakker()
+
+    # vip_flip_count: Vip only; for phase 8 baseline we don't track; assume 1.
+    vip_flip_count = 1 if isinstance(bid, NumberBid) and bid.modifier.value == "vip" else 0
+
+    ctx = ScoringContext(
+        bid=bid,
+        trump=pre_trick_state.trump,
+        vip_flip_count=vip_flip_count,
+        banket=pre_trick_state.banket.banket_by is not None,
+        re_banket=pre_trick_state.banket.re_banket_by is not None,
+        tricks_target=tricks_target,
+        tricks_taken_by_declarer_side=declarer_side_tricks,
+        ruleset=ruleset,
+    )
+    magnitude = score_magnitude(ctx)
+    all_players = list(pre_trick_state.players)
+    per_player = distribute(
+        magnitude,
+        declarer=declarer,
+        partner=partner,
+        all_active=all_players,
+        selvmakker=selvmakker,
+        ruleset=ruleset,
+    )
+    score_event = ScoreEvent(per_player={p.id: v for p, v in per_player.items()})
+    transition = PhaseTransitionEvent(from_phase=Phase.PLAYING, to_phase=Phase.FINISHED)
+    # Capsize event if nolo declarer exceeded target.
+    if isinstance(bid, NoloBid) and declarer_side_tricks > tricks_target:
+        return (
+            CapsizeEvent(declarer=declarer, tricks_taken=declarer_side_tricks),
+            score_event,
+            transition,
+        )
+    return (score_event, transition)
 
 
 _PHASE_HANDLERS: dict[Phase, PhaseHandler] = {

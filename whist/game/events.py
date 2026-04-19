@@ -376,6 +376,40 @@ class PartnerRevealedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class ScoreEvent(BaseEvent):
+    per_player: dict[int, int]  # player_id -> score delta
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "score", "per_player": {str(k): int(v) for k, v in self.per_player.items()}}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> ScoreEvent:
+        return cls(per_player={int(k): int(v) for k, v in d["per_player"].items()})
+
+
+@dataclass(frozen=True)
+class CapsizeEvent(BaseEvent):
+    """Nolo declarer took too many tricks — contract busted."""
+
+    declarer: Player
+    tricks_taken: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "capsize",
+            "declarer": self.declarer.to_dict(),
+            "tricks_taken": self.tricks_taken,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> CapsizeEvent:
+        return cls(
+            declarer=Player.from_dict(d["declarer"]),
+            tricks_taken=int(d["tricks_taken"]),
+        )
+
+
+@dataclass(frozen=True)
 class KingCalledEvent(BaseEvent):
     """Declarer called a king (all-4-aces path)."""
 
@@ -422,6 +456,8 @@ _EVENT_TAGS: dict[str, type[BaseEvent]] = {
     "halve_trump_chosen": HalveTrumpChosenEvent,
     "marker_placed": MarkerPlacedEvent,
     "partner_revealed": PartnerRevealedEvent,
+    "score": ScoreEvent,
+    "capsize": CapsizeEvent,
 }
 
 

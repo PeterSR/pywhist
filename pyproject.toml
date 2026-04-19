@@ -81,8 +81,6 @@ exclude = [
     "whist/match/",
     # Rewritten in phase 6 (bidding):
     "whist/game/bids.py",
-    # Rewritten in phase 8 (scoring port):
-    "whist/game/scoring.py",
     # Rewritten in phase 12 (gym env + AI):
     "whist/game/ai.py",
 ]
