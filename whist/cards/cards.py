@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -24,6 +25,13 @@ class Card:
     @property
     def symbol(self) -> str:
         return card_symbol[self]
+
+    def to_dict(self) -> dict[str, str]:
+        return {"s": self.suit.code, "r": self.rank.code}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, str]) -> "Card":
+        return cls(Suit.from_code(d["s"]), Rank.from_code(d["r"]))
 
 
 Card.unknown = Card(Suit.Unknown, Rank.Unknown)

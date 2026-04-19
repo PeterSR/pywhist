@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 
 from .cards import Card
@@ -63,6 +63,20 @@ class Deck:
             raise ValueError("to_trick only support tricks of size 4")
 
         return tuple(self.cards)  # type: ignore[return-value]
+
+    def to_list(self) -> list[dict[str, str]]:
+        return [c.to_dict() for c in self.cards]
+
+    @classmethod
+    def from_list(
+        cls,
+        lst: Iterable[Mapping[str, str]],
+        *,
+        allow_reorder: bool = True,
+    ) -> Deck:
+        deck = cls([Card.from_dict(d) for d in lst])
+        deck.allow_reorder = allow_reorder
+        return deck
 
     def __len__(self) -> int:
         return len(self.cards)

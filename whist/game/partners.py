@@ -1,7 +1,8 @@
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from itertools import count
-from typing import NewType
+from typing import Any, NewType
 
 from .player import Player
 
@@ -72,3 +73,16 @@ class Partners:
     @property
     def num_teams(self) -> int:
         return len(self.team_ids)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "players": [p.id for p in self.players],
+            "team_of": {str(p.id): int(tid) for p, tid in self.team_id_assignment.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, players: list[Player], d: Mapping[str, Any]) -> "Partners":
+        by_id = {p.id: p for p in players}
+        ordered = [by_id[int(pid)] for pid in d["players"]]
+        assignment = {by_id[int(pid)]: TeamID(int(tid)) for pid, tid in d["team_of"].items()}
+        return cls(ordered, assignment)
