@@ -77,7 +77,8 @@ exclude = [
     "dist/",
     # Rewritten in phase 6 (bidding):
     "whist/game/bids.py",
-    # Rewritten in phase 12 (gym env + AI):
+    # Phase 12 gym env doesn't require touching the legacy BaseAI / RandomAI
+    # which remain untyped; exclude them from strict mypy:
     "whist/game/ai.py",
 ]
 
