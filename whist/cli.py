@@ -1,162 +1,81 @@
-from .game.actions import CallAction, PlayAction
-from .game.ai import BaseAI, RandomAI
-from .game.player import create_default_players
-from .game.state import GameStateView
-from .match import Match
+"""Plain-text CLI driver — runs a match, prints hand-by-hand results.
+
+Phase 11 delivers a minimum-viable interactive entry point:
+
+- `pywhist` launches a 4-player, single-hand game driven by a random AI for
+  all seats. It plays the hand to completion and prints the scoreboard.
+- The heavy interactive path (human input, seat config, pretty rendering)
+  remains deferred — this scaffold keeps the CLI reachable without shipping
+  a TUI that would need near-constant maintenance against the reducer.
+"""
+
+from __future__ import annotations
+
+import argparse
+import random
+import sys
+
+from . import __version__
+from .game.actions import BaseAction, JernhaandDeclineAction
+from .game.game import Game
+from .game.phase import Phase
 
 
-def display_board(view):
-    for p, hand in view.other_players.items():
-        print(f"{p.name:>6}: {hand}")
+def _pick_random(actions: list[BaseAction], rng: random.Random) -> BaseAction:
+    return rng.choice(actions)
 
+
+def _play_one_hand(seed: int, verbose: bool) -> Game:
+    rng = random.Random(seed)
+    game = Game(seed=seed)
+    game.deal()
+
+    safety = 500
+    while not game.has_ended and safety > 0:
+        state = game.state
+        assert state is not None
+        if state.phase == Phase.DEALING and state.jernhaand_pending:
+            p = next(iter(state.jernhaand_pending))
+            game.take_action(p, JernhaandDeclineAction(p))
+            safety -= 1
+            continue
+        actions = game.valid_actions(game.current_player)
+        if not actions:
+            break
+        action = _pick_random(actions, rng)
+        if verbose:
+            print(f"[{state.phase.value}] {game.current_player.name}: {action}")
+        game.take_action(game.current_player, action)
+        safety -= 1
+
+    return game
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="pywhist",
+        description="Danish Esmakker Whist — minimal auto-play CLI.",
+    )
+    parser.add_argument("--version", action="version", version=f"pywhist {__version__}")
+    parser.add_argument("--seed", type=int, default=42, help="RNG seed (default: 42)")
+    parser.add_argument("--verbose", action="store_true", help="print each action as it happens")
+    args = parser.parse_args(argv)
+
+    game = _play_one_hand(args.seed, args.verbose)
+    state = game.state
+    assert state is not None
     print()
-    if len(view.partners) == 0:
-        print("(You have no partner)")
-    for p in view.partners:
-        print(f"Your partner: {p.name}")
-
-    print()
-    print(f"Trump:       {view.trump.symbol}")
-    print(f"Partner Ace: {view.partner_ace.symbol}")
-    print()
-
-    print()
-    print(f"Pile: {view.pile}")
-    print()
-    print(f"Your hand: {view.hand}")
-    print()
-
-
-def parse_cli_action(s, actions):
-    try:
-        index = int(s)
-    except ValueError:
-        return None
-
-    try:
-        return actions[index]
-    except IndexError:
-        return None
-
-
-def display_actions(actions):
-    for i, action in enumerate(actions):
-        if isinstance(action, PlayAction):
-            s = action.card.symbol
-        elif isinstance(action, CallAction):
-            s = f"Call {action.call.trump.symbol} trump with {action.call.partner_ace.symbol} ace"
-        else:
-            s = "?"
-        print(f"{i:>2}: {s}")
+    print(f"Final phase: {state.phase.value}")
+    print(f"Trump: {state.trump.code}  Partner-ace: {state.partner_ace.code}")
+    print(f"Tricks played: {len(state.tricks)}")
+    scoreboard = game.get_scoreboard()
+    if scoreboard:
+        print("Tricks per team:")
+        for team, count in scoreboard.items():
+            names = ", ".join(p.name for p in team)
+            print(f"  {names:<30} {count}")
+    return 0
 
 
 if __name__ == "__main__":
-    import time
-
-    # Interactive CLI game
-
-    game_speed = 1
-    last_event_index = 0
-
-    players = create_default_players()
-
-    match = Match()
-    match.state.scoreboard = {p.id: 0 for p in players}
-
-    controllers = []
-    for _ in players:
-        ai = RandomAI(None)
-        controllers.append(ai)
-
-    human_index = 0
-    controllers[human_index] = "human"
-
-    while not match.has_ended:
-        match.new_game(players=players)
-
-        game = match.current_game
-
-        for player, controller in zip(players, controllers, strict=True):
-            if isinstance(controller, BaseAI):
-                controller.game_state_view = GameStateView(game.state, player)
-
-        my_view = GameStateView(game.state, players[human_index])
-
-        game.deal()
-
-        while not game.has_ended:
-            player = game.current_player
-            controller = controllers[game.state.turn]
-
-            if controller == "human":
-                if len(game.state.events) > last_event_index:
-                    print()
-                    print("=== Events: ===")
-                    for event in game.state.events[last_event_index:]:
-                        print("-", event)
-                    last_event_index = len(game.state.events)
-                    print()
-
-                print()
-                print(f"=== Turn: {player.name} ===")
-                print()
-
-                display_board(my_view)
-
-                print("Actions:")
-                actions = game.valid_actions(player)
-                display_actions(actions)
-
-                while True:
-                    s = input("> ")
-                    if s == "tricks":
-                        print(game.state.tricks)
-                        print(game.state.trick_owner)
-                        continue
-
-                    if s.startswith("speed:"):
-                        _, x = s.split(":", 2)
-                        try:
-                            game_speed = float(x)
-                        except ValueError:
-                            pass
-                        else:
-                            print(f"Game speed changed to: {game_speed}")
-                            continue
-
-                    action = parse_cli_action(s, actions)
-                    if game.is_valid_action(player, action):
-                        result = game.take_action(player, action)
-                        if result:
-                            break
-                    else:
-                        print("Invalid action.")
-            else:
-                actions = game.valid_actions(player)
-                action = controller.pick_action(actions)
-                game.take_action(player, action)
-
-                print()
-                print(f"=== Turn taken: {player.name} ===")
-                print()
-
-                display_board(my_view)
-
-                if controllers[0] == "human":
-                    time.sleep(game_speed)
-
-        if len(game.state.events) > last_event_index:
-            print()
-            print("=== Events: ===")
-            for event in game.state.events[last_event_index:]:
-                print("-", event)
-            last_event_index = len(game.state.events)
-            print()
-
-        print("Tricks:")
-
-        scoreboard = game.get_scoreboard()
-
-        for team, s in scoreboard.items():
-            team_str = ", ".join(p.name for p in team)
-            print(f"{team_str:<13}: {s}")
+    sys.exit(main())

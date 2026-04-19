@@ -75,8 +75,6 @@ show_error_codes = true
 exclude = [
     "build/",
     "dist/",
-    # Rewritten in phase 11 (CLI rebuild):
-    "whist/cli.py",
     # Rewritten in phase 6 (bidding):
     "whist/game/bids.py",
     # Rewritten in phase 12 (gym env + AI):
