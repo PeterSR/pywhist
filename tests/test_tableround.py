@@ -7,11 +7,7 @@ from whist.game.tableround import TableRound
 @pytest.fixture
 def players():
     player_names = ("north", "east", "south", "west")
-    return [
-        Player(id, name)
-        for id, name
-        in enumerate(player_names)
-    ]
+    return [Player(id, name) for id, name in enumerate(player_names)]
 
 
 def test_tableround(players):

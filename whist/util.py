@@ -1,5 +1,7 @@
 from enum import Enum, auto
 
+__all__ = ["OrderedEnum", "auto"]
+
 
 class OrderedEnum(Enum):
     """
@@ -25,4 +27,3 @@ class OrderedEnum(Enum):
         if self.__class__ is other.__class__:
             return self.value < other.value
         return NotImplemented
-

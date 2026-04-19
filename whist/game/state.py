@@ -1,10 +1,9 @@
 from dataclasses import dataclass
-from typing import List, Dict
 
-from ..cards import Suit, Card, Deck, Trick
-from .player import Player
-from .partners import Partners, TeamID
+from ..cards import Card, Deck, Suit, Trick
 from .events import BaseEvent
+from .partners import Partners, TeamID
+from .player import Player
 
 
 @dataclass
@@ -15,26 +14,22 @@ class GameState:
 
     dealer: Player = None
     bid_winner: Player = None
-    players: List[Player] = None
-    hands: Dict[Player, Deck] = None
+    players: list[Player] = None
+    hands: dict[Player, Deck] = None
     trump: Suit = Suit.Unknown
     partner_ace: Suit = Suit.Unknown
     partner_ace_revealed: bool = False
     partners: Partners = None
     kitty: Deck = None
     pile: Deck = None
-    pile_play: List[Player] = None
-    tricks: List[Trick] = None
-    trick_owner: Dict[int, TeamID] = None
+    pile_play: list[Player] = None
+    tricks: list[Trick] = None
+    trick_owner: dict[int, TeamID] = None
 
-    events: List[BaseEvent] = None
+    events: list[BaseEvent] = None
 
     # Index in players
     turn: int = 0
-
-    bid: str = ""
-
-    mode: str = ""
 
     phase: str = "dealing"
 

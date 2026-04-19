@@ -1,0 +1,33 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific rules
+    "PL",   # pylint (subset)
+    "PT",   # pytest style
+    "PTH",  # use pathlib
+    "TRY",  # tryceratops (error handling)
+]
+# NOTE: `ANN` (flake8-annotations) is deliberately NOT selected during phase 0
+# of the revamp. Phase 1 will do the full type-hygiene pass and switch ANN on.
+ignore = [
+    "PLR0913", # too-many-arguments — we're reducer-heavy
+    "PLR2004", # magic-value-comparison — noisy for game rules
+    "TRY003",  # long exception messages are fine
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["PLR"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

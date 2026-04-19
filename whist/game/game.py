@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections import Counter
+from dataclasses import dataclass
 from itertools import product
-from typing import List
 
-
-from ..cards import Suit, Rank, Card, Deck, suits
-from .player import create_default_players
-from .tableround import TableRound
-from .state import GameState, Player, Partners
-from .actions import BaseAction, PlayAction, CallAction
+from ..cards import Card, Deck, Rank, Suit, suits
+from .actions import BaseAction, CallAction, PlayAction
 from .bids import Call
 from .events import ActionTakenEvent, TrickTakenEvent
+from .player import create_default_players
+from .state import GameState, Partners
+from .tableround import TableRound
 
 
 @dataclass
@@ -22,7 +20,6 @@ class Game:
     """
 
     state: GameState = None
-    variant: str = "esmakker"
 
     def __post_init__(self):
         if self.state is None:
@@ -35,16 +32,10 @@ class Game:
             players = create_default_players()
 
         # Initially each player starts with an empty hand
-        hands = {
-            p: Deck.empty()
-            for p in players
-        }
+        hands = {p: Deck.empty() for p in players}
 
-        # Initally, we don't know who are partners.
+        # Initially, we don't know who are partners.
         partners = Partners(players)
-
-        if self.variant == "classic":
-            partners.bisect(players[0], players[2])
 
         dealer_index = settings.get("dealer_index", 0)
         dealer = players[dealer_index]
@@ -68,8 +59,6 @@ class Game:
         hand_size = 13
         assert len(self.state.players) == 4
 
-        card = None
-
         tableround = TableRound(self.state.dealer, self.state.players)
 
         for p in tableround:
@@ -78,10 +67,6 @@ class Game:
                 card = deck.cards.pop()
                 hand.give(card, sort=False)
             hand.sort()
-
-        if self.variant == "classic":
-            assert card is not None
-            self.state.trump = card.suit
 
         self.state.kitty = Deck.from_deck(deck)
 
@@ -100,14 +85,13 @@ class Game:
     def current_player(self):
         return self.state.current_player
 
-    def valid_actions(self, player):
+    def valid_actions(self, player):  # noqa: PLR0911  # rewritten in phase 6 (bidding)
         if player != self.current_player:
             return []
 
         if self.state.phase == "calling":
             calls = [
-                CallAction(Call(trump, partner_ace))
-                for trump, partner_ace in product(suits, suits)
+                CallAction(Call(trump, partner_ace)) for trump, partner_ace in product(suits, suits)
             ]
 
             return calls
@@ -129,10 +113,7 @@ class Game:
                         if partner_ace in hand:
                             return [PlayAction(partner_ace)]
 
-                    suits_from_hand = [
-                        card for card in hand
-                        if card.suit is first_card.suit
-                    ]
+                    suits_from_hand = [card for card in hand if card.suit is first_card.suit]
 
                 if len(suits_from_hand) > 0:
                     return [PlayAction(card) for card in suits_from_hand]
@@ -149,7 +130,7 @@ class Game:
 
     def take_action(self, player, action):
         if not isinstance(action, BaseAction):
-            raise ValueError(f"Not an action: {action}")
+            raise TypeError(f"Not an action: {action}")
 
         self.state.events.append(ActionTakenEvent(player, action))
 
@@ -203,7 +184,7 @@ class Game:
             else:
                 state.turn = (state.turn + 1) % state.num_players
         else:
-            raise ValueError(f"Invalid action: {action}")
+            raise TypeError(f"Invalid action: {action}")
 
         return True
 
@@ -229,7 +210,7 @@ class Game:
         return card_scores
 
     def _assign_trick(self, pile_play, scores):
-        _, winner = max(zip(scores, pile_play))
+        _, winner = max(zip(scores, pile_play, strict=True))
         return winner
 
     def _determine_partner_ace_player(self):
@@ -243,12 +224,10 @@ class Game:
 
         return None
 
-
-
     def get_scoreboard(self):
         scores = Counter()
 
-        for trick_index, team_id in self.state.trick_owner.items():
+        for _trick_index, team_id in self.state.trick_owner.items():
             scores[team_id] += 1
 
         scoreboard = {}

@@ -1,9 +1,8 @@
-from .match import Match
-from .game.game import Game
-from .game.state import GameStateView
-from .game.player import create_default_players
-from .game.actions import PlayAction, CallAction
+from .game.actions import CallAction, PlayAction
 from .game.ai import BaseAI, RandomAI
+from .game.player import create_default_players
+from .game.state import GameStateView
+from .match import Match
 
 
 def display_board(view):
@@ -26,7 +25,6 @@ def display_board(view):
     print()
     print(f"Your hand: {view.hand}")
     print()
-
 
 
 def parse_cli_action(s, actions):
@@ -57,7 +55,6 @@ if __name__ == "__main__":
 
     # Interactive CLI game
 
-
     game_speed = 1
     last_event_index = 0
 
@@ -67,7 +64,7 @@ if __name__ == "__main__":
     match.state.scoreboard = {p.id: 0 for p in players}
 
     controllers = []
-    for player in players:
+    for _ in players:
         ai = RandomAI(None)
         controllers.append(ai)
 
@@ -79,7 +76,7 @@ if __name__ == "__main__":
 
         game = match.current_game
 
-        for player, controller in zip(players, controllers):
+        for player, controller in zip(players, controllers, strict=True):
             if isinstance(controller, BaseAI):
                 controller.game_state_view = GameStateView(game.state, player)
 
@@ -147,8 +144,6 @@ if __name__ == "__main__":
 
                 if controllers[0] == "human":
                     time.sleep(game_speed)
-
-
 
         if len(game.state.events) > last_event_index:
             print()

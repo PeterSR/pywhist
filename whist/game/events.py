@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
 from ..cards import Trick
+from .actions import BaseAction
 from .partners import TeamID
 from .player import Player
-from .actions import BaseAction
 
 
 class BaseEvent:

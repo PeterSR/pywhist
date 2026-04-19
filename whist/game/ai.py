@@ -4,7 +4,6 @@ from .state import GameStateView
 
 
 class BaseAI:
-
     def __init__(self, game_state_view: GameStateView):
         self.game_state_view = game_state_view
 
@@ -13,7 +12,6 @@ class BaseAI:
 
 
 class RandomAI(BaseAI):
-
     def pick_action(self, actions):
-        action, = random.sample(actions, 1)
+        (action,) = random.sample(actions, 1)
         return action

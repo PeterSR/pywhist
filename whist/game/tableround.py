@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 from .player import Player
 
@@ -7,7 +6,7 @@ from .player import Player
 @dataclass
 class TableRound:
     dealer: Player
-    players: List[Player]
+    players: list[Player]
     max_rounds: int = 1
 
     def __iter__(self):

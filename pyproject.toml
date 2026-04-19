@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pywhist"
+version = "1.0.0a0"
+description = "A Python library implementing Danish Esmakker Whist (Call-ace Whist) — rules engine, scoring, and an AI-friendly state-view model."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Peter Severin Rasmussen", email = "git@petersr.com" }]
+keywords = ["whist", "card-game", "esmakker", "call-ace", "danish", "game-engine"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment :: Board Games",
+]
+dependencies = [
+    "msgspec>=0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.urls]
+Homepage = "https://github.com/PeterSR/pywhist"
+Repository = "https://github.com/PeterSR/pywhist"
+
+[project.scripts]
+pywhist = "whist.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["whist"]
+
+[tool.hatch.build.targets.sdist]
+include = ["whist", "tests", "README.md", "LICENSE", "sources.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+
+[tool.coverage.run]
+source = ["whist"]
+branch = true
+
+[tool.coverage.report]
+exclude_also = [
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "@overload",
+]
+
+[tool.mypy]
+python_version = "3.12"
+# Phase 0 ships a loose mypy config. Phase 1 flips strict=true after the
+# type-hygiene pass. Files being fully rewritten in later phases are excluded
+# here to keep CI green during the revamp; the exclusions narrow as phases land.
+strict = false
+warn_unreachable = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+show_error_codes = true
+exclude = [
+    "build/",
+    "dist/",
+    # Rewritten in phase 11 (CLI rebuild):
+    "whist/cli.py",
+    # Rewritten in phase 10 (match layer):
+    "whist/match/",
+    # Rewritten in phase 6 (bidding):
+    "whist/game/bids.py",
+    # Rewritten in phase 8 (scoring port):
+    "whist/game/scoring.py",
+    # Rewritten in phase 12 (gym env + AI):
+    "whist/game/ai.py",
+    # Phase 4 converts these to frozen dataclasses + pure reducer; deferring
+    # until then so the pre-refactor None-default shape doesn't noise up mypy.
+    "whist/game/state.py",
+    "whist/game/game.py",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

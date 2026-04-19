@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-
 PlayerID = int
 
 
@@ -16,16 +15,6 @@ class Player:
         }
 
 
-
-def create_default_players():
-    num_players = 4
+def create_default_players() -> list[Player]:
     player_names = ("north", "east", "south", "west")
-
-    # Create players (up to 4) based on preset player names
-    players = [
-        Player(id, name)
-        for id, (_, name)
-        in enumerate(zip(range(num_players), player_names))
-    ]
-
-    return players
+    return [Player(idx, name) for idx, name in enumerate(player_names)]

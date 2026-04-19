@@ -1,4 +1,3 @@
-from typing import List
 from dataclasses import dataclass
 
 from ..game.player import PlayerID
@@ -22,5 +21,5 @@ class MatchState:
             self.scoreboard = dict()
 
     @property
-    def players(self) -> List[PlayerID]:
+    def players(self) -> list[PlayerID]:
         return list(self.scoreboard.keys())

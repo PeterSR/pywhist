@@ -64,8 +64,17 @@ rank_symbol = {
 }
 
 ranks = (
-    Rank.Ace, Rank.Two, Rank.Three,
-    Rank.Four, Rank.Five, Rank.Six,
-    Rank.Seven, Rank.Eight, Rank.Nine, Rank.Ten,
-    Rank.Jack, Rank.Queen, Rank.King,
+    Rank.Ace,
+    Rank.Two,
+    Rank.Three,
+    Rank.Four,
+    Rank.Five,
+    Rank.Six,
+    Rank.Seven,
+    Rank.Eight,
+    Rank.Nine,
+    Rank.Ten,
+    Rank.Jack,
+    Rank.Queen,
+    Rank.King,
 )

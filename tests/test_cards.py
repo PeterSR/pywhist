@@ -1,4 +1,4 @@
-from whist.cards import Suit, Rank, Card, Deck
+from whist.cards import Card, Deck, Rank, Suit
 
 
 def test_card():

@@ -1,7 +1,4 @@
-from typing import Tuple
-
 from .cards import Card
 
-
-Trick4 = Tuple[Card, Card, Card, Card]
+Trick4 = tuple[Card, Card, Card, Card]
 Trick = Trick4

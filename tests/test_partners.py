@@ -1,17 +1,13 @@
 import pytest
 
-from whist.game.player import Player
 from whist.game.partners import Partners
+from whist.game.player import Player
 
 
 @pytest.fixture
 def players():
     player_names = ("north", "east", "south", "west")
-    return [
-        Player(id, name)
-        for id, name
-        in enumerate(player_names)
-    ]
+    return [Player(id, name) for id, name in enumerate(player_names)]
 
 
 @pytest.fixture
@@ -30,7 +26,7 @@ def test_join_pair(partners):
 
     partners.join(p0, p1)
 
-    assert partners.num_teams == len(partners.players)-1
+    assert partners.num_teams == len(partners.players) - 1
 
     assert partners.team_id(p0) == partners.team_id(p1)
 
@@ -53,7 +49,7 @@ def test_isolate(partners):
     assert partners.team_size(team_id) == 1
 
     team_id = partners.team_id(p1)
-    assert partners.team_size(team_id) == len(partners.players)-1
+    assert partners.team_size(team_id) == len(partners.players) - 1
 
 
 def test_bisect(partners):
@@ -66,4 +62,3 @@ def test_bisect(partners):
     assert partners.num_teams == 2
 
     assert partners.team_id(p0) == partners.team_id(p1)
-
