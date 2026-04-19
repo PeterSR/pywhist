@@ -164,6 +164,8 @@ class GameState:
     marker_card: Card | None = None
     # Cards permanently out of play for the hand (post-katten discards).
     discarded: tuple[Card, ...] = ()
+    # Players whose hands are face-up (Bordlægger after trick 1 collection).
+    hand_exposed: frozenset[Player] = frozenset()
 
     @property
     def round(self) -> int:
@@ -212,6 +214,7 @@ class GameState:
             "katten": self.katten.to_dict(),
             "marker_card": self.marker_card.to_dict() if self.marker_card is not None else None,
             "discarded": [c.to_dict() for c in self.discarded],
+            "hand_exposed": [p.to_dict() for p in self.hand_exposed],
         }
 
     @classmethod
@@ -241,6 +244,7 @@ class GameState:
         katten = KattenState.from_dict(d["katten"]) if "katten" in d else KattenState()
         marker_card = Card.from_dict(d["marker_card"]) if d.get("marker_card") else None
         discarded = tuple(Card.from_dict(c) for c in d.get("discarded", []))
+        hand_exposed = frozenset(Player.from_dict(p) for p in d.get("hand_exposed", []))
 
         return cls(
             players=players,
@@ -266,6 +270,7 @@ class GameState:
             katten=katten,
             marker_card=marker_card,
             discarded=discarded,
+            hand_exposed=hand_exposed,
         )
 
 
