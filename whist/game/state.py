@@ -61,6 +61,30 @@ class AuctionState:
 
 
 @dataclass(frozen=True, slots=True)
+class KattenState:
+    """Running state during KATTEN_EXCHANGE (and VIP_FLIP reveals)."""
+
+    cards: tuple[Card, ...] = ()
+    flipped: tuple[bool, ...] = ()
+    holder: Player | None = None  # player currently holding the katten (post-take)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cards": [c.to_dict() for c in self.cards],
+            "flipped": list(self.flipped),
+            "holder": self.holder.to_dict() if self.holder is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> KattenState:
+        return cls(
+            cards=tuple(Card.from_dict(c) for c in d["cards"]),
+            flipped=tuple(bool(v) for v in d["flipped"]),
+            holder=Player.from_dict(d["holder"]) if d.get("holder") is not None else None,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class BanketState:
     """Banket / re-banket flags for the active contract."""
 
@@ -136,6 +160,10 @@ class GameState:
     # instead of CallAction. Set by the reducer when the bid closes.
     king_call_required: bool = False
     seed: int | None = None
+    katten: KattenState = field(default_factory=KattenState)
+    marker_card: Card | None = None
+    # Cards permanently out of play for the hand (post-katten discards).
+    discarded: tuple[Card, ...] = ()
 
     @property
     def round(self) -> int:
@@ -181,6 +209,9 @@ class GameState:
             "jernhaand_pending": [p.to_dict() for p in self.jernhaand_pending],
             "king_call_required": self.king_call_required,
             "seed": self.seed,
+            "katten": self.katten.to_dict(),
+            "marker_card": self.marker_card.to_dict() if self.marker_card is not None else None,
+            "discarded": [c.to_dict() for c in self.discarded],
         }
 
     @classmethod
@@ -207,6 +238,9 @@ class GameState:
         banket = BanketState.from_dict(d["banket"]) if "banket" in d else BanketState()
         jernhaand_pending = frozenset(Player.from_dict(p) for p in d.get("jernhaand_pending", []))
         seed_val = d.get("seed")
+        katten = KattenState.from_dict(d["katten"]) if "katten" in d else KattenState()
+        marker_card = Card.from_dict(d["marker_card"]) if d.get("marker_card") else None
+        discarded = tuple(Card.from_dict(c) for c in d.get("discarded", []))
 
         return cls(
             players=players,
@@ -229,6 +263,9 @@ class GameState:
             jernhaand_pending=jernhaand_pending,
             king_call_required=bool(d.get("king_call_required", False)),
             seed=int(seed_val) if seed_val is not None else None,
+            katten=katten,
+            marker_card=marker_card,
+            discarded=discarded,
         )
 
 

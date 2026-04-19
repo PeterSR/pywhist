@@ -20,10 +20,6 @@ from whist.game.reducer import _PHASE_HANDLERS, apply
 
 # phases that still have no real logic — `apply` should raise NotImplementedError
 STUB_PHASES: tuple[Phase, ...] = (
-    Phase.KATTEN_EXCHANGE,
-    Phase.VIP_FLIP,
-    Phase.HALVE_TRUMP,
-    Phase.MARKER_PLACEMENT,
     Phase.SCORING,
     Phase.FINISHED,
 )

@@ -225,6 +225,127 @@ class JernhaandDeclineAction(BaseAction):
         return cls(player=Player.from_dict(d["player"]))
 
 
+# ---- phase 7 sub-phase actions -------------------------------------------
+
+
+@dataclass(frozen=True)
+class KattenExchangeTakeAction(BaseAction):
+    """Exchanger takes all 3 katten cards (must follow with discards)."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "katten_take"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> KattenExchangeTakeAction:
+        return cls()
+
+
+@dataclass(frozen=True)
+class KattenExchangeSkipAction(BaseAction):
+    """Exchanger skips the katten — takes 0 cards."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "katten_skip"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> KattenExchangeSkipAction:
+        return cls()
+
+
+@dataclass(frozen=True)
+class KattenDiscardAction(BaseAction):
+    """Discard exactly 3 cards back after taking the katten."""
+
+    cards: tuple[Card, Card, Card]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "katten_discard", "cards": [c.to_dict() for c in self.cards]}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> KattenDiscardAction:
+        cards_list = [Card.from_dict(c) for c in d["cards"]]
+        if len(cards_list) != 3:
+            raise ValueError(f"Expected 3 cards, got {len(cards_list)}")
+        return cls(cards=(cards_list[0], cards_list[1], cards_list[2]))
+
+
+@dataclass(frozen=True)
+class VipFlipAction(BaseAction):
+    """Flip the next katten card during Vip — reveals trump candidate."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "vip_flip"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> VipFlipAction:
+        return cls()
+
+
+@dataclass(frozen=True)
+class VipStopAction(BaseAction):
+    """Stop flipping — accept the current revealed suit as trump."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "vip_stop"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> VipStopAction:
+        return cls()
+
+
+@dataclass(frozen=True)
+class VipContinueAction(BaseAction):
+    """Keep flipping after a gå-med player declined to take over."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "vip_continue"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> VipContinueAction:
+        return cls()
+
+
+@dataclass(frozen=True)
+class HalveTrumpChoiceAction(BaseAction):
+    """Partner's trump choice under a Halve bid."""
+
+    trump: Suit
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "halve_trump", "trump": self.trump.code}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> HalveTrumpChoiceAction:
+        return cls(trump=Suit.from_code(d["trump"]))
+
+
+@dataclass(frozen=True)
+class MarkerCardAction(BaseAction):
+    """Declarer places a face-down marker card as partner-ace-suit surrogate.
+
+    Legal only when declarer holds ≤ `marker_card_threshold` of partner-ace suit.
+    """
+
+    card: Card
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "marker", "card": self.card.to_dict()}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> MarkerCardAction:
+        return cls(card=Card.from_dict(d["card"]))
+
+
+@dataclass(frozen=True)
+class MarkerSkipAction(BaseAction):
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "marker_skip"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> MarkerSkipAction:
+        return cls()
+
+
 # ---- dispatch -------------------------------------------------------------
 
 _ACTION_TAGS: dict[str, type[BaseAction]] = {
@@ -240,6 +361,15 @@ _ACTION_TAGS: dict[str, type[BaseAction]] = {
     "banket_skip": BanketSkipAction,
     "jernhaand": JernhaandAction,
     "jernhaand_decline": JernhaandDeclineAction,
+    "katten_take": KattenExchangeTakeAction,
+    "katten_skip": KattenExchangeSkipAction,
+    "katten_discard": KattenDiscardAction,
+    "vip_flip": VipFlipAction,
+    "vip_stop": VipStopAction,
+    "vip_continue": VipContinueAction,
+    "halve_trump": HalveTrumpChoiceAction,
+    "marker": MarkerCardAction,
+    "marker_skip": MarkerSkipAction,
 }
 
 

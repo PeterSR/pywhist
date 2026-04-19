@@ -19,12 +19,20 @@ from .actions import (
     CallAction,
     DetKanJegSelvAction,
     GaaMedAction,
+    HalveTrumpChoiceAction,
     JernhaandAction,
     JernhaandDeclineAction,
+    KattenDiscardAction,
+    KattenExchangeSkipAction,
+    KattenExchangeTakeAction,
     KingCallAction,
+    MarkerCardAction,
+    MarkerSkipAction,
     PassAction,
     PlayAction,
     ReBanketAction,
+    VipFlipAction,
+    VipStopAction,
 )
 from .bids import (
     BidModifier,
@@ -41,18 +49,24 @@ from .events import (
     BaseEvent,
     BidWonEvent,
     DealEvent,
+    HalveTrumpChosenEvent,
     JernhaandDeclaredEvent,
     JernhaandOptionEvent,
+    KattenExchangedEvent,
     KingCalledEvent,
+    MarkerPlacedEvent,
+    PartnerRevealedEvent,
     PhaseTransitionEvent,
     ReBanketEvent,
     RedealEvent,
     TrickTakenEvent,
+    VipFlipEvent,
+    VipStoppedEvent,
 )
 from .partners import Partners
 from .phase import Phase
 from .player import Player
-from .state import AuctionState, BanketState, GameState
+from .state import AuctionState, BanketState, GameState, KattenState
 from .tableround import TableRound
 
 PhaseHandler = Callable[[GameState, BaseAction], tuple[GameState, tuple[BaseEvent, ...]]]
@@ -745,17 +759,227 @@ def _stub_for_phase(phase: Phase, pending_in: str) -> PhaseHandler:
     return handler
 
 
+def _handle_katten_exchange(
+    state: GameState, action: BaseAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if isinstance(action, KattenExchangeSkipAction):
+        return _katten_skip(state)
+    if isinstance(action, KattenExchangeTakeAction):
+        return _katten_take(state)
+    if isinstance(action, KattenDiscardAction):
+        return _katten_discard(state, action)
+    raise IllegalAction(f"Expected katten action in {state.phase!r}")
+
+
+def _katten_skip(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    exchanger = state.current_player
+    action_event = ActionTakenEvent(exchanger, KattenExchangeSkipAction())
+    exchanged_event = KattenExchangedEvent(exchanger, took_count=0, discards_count=0)
+    transition = PhaseTransitionEvent(from_phase=Phase.KATTEN_EXCHANGE, to_phase=Phase.PLAYING)
+    new_state = state.replace(
+        phase=Phase.PLAYING,
+        events=(*state.events, action_event, exchanged_event, transition),
+    )
+    return new_state, (action_event, exchanged_event, transition)
+
+
+def _katten_take(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    exchanger = state.current_player
+    katten = state.katten
+    if not katten.cards:
+        raise RulesViolation("Katten is empty — nothing to take")
+
+    new_hand_cards = [*state.hands[exchanger].cards, *katten.cards]
+    new_hands = dict(state.hands)
+    new_hands[exchanger] = Deck(new_hand_cards)
+    # Holder is set; we're now waiting for KattenDiscardAction.
+    new_katten = KattenState(cards=katten.cards, flipped=katten.flipped, holder=exchanger)
+    action_event = ActionTakenEvent(exchanger, KattenExchangeTakeAction())
+    new_state = state.replace(
+        hands=new_hands, katten=new_katten, events=(*state.events, action_event)
+    )
+    return new_state, (action_event,)
+
+
+def _katten_discard(
+    state: GameState, action: KattenDiscardAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if state.katten.holder is None:
+        raise RulesViolation("No active katten holder — issue KattenExchangeTake first")
+    exchanger = state.katten.holder
+    if state.current_player != exchanger:
+        raise RulesViolation("Only the katten holder may discard")
+
+    hand = state.hands[exchanger]
+    for c in action.cards:
+        if c not in hand.cards:
+            raise RulesViolation(f"Card not in hand: {c!r}")
+
+    new_hand_cards = list(hand.cards)
+    for c in action.cards:
+        new_hand_cards.remove(c)
+    new_hands = dict(state.hands)
+    new_hands[exchanger] = Deck(new_hand_cards)
+
+    new_discarded = (*state.discarded, *action.cards)
+    action_event = ActionTakenEvent(exchanger, action)
+    exchanged_event = KattenExchangedEvent(exchanger, took_count=3, discards_count=3)
+    transition = PhaseTransitionEvent(from_phase=Phase.KATTEN_EXCHANGE, to_phase=Phase.PLAYING)
+    new_state = state.replace(
+        hands=new_hands,
+        discarded=new_discarded,
+        katten=KattenState(),  # clear
+        phase=Phase.PLAYING,
+        events=(*state.events, action_event, exchanged_event, transition),
+    )
+    return new_state, (action_event, exchanged_event, transition)
+
+
+def _handle_halve_trump(
+    state: GameState, action: BaseAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if not isinstance(action, HalveTrumpChoiceAction):
+        raise IllegalAction(f"Expected HalveTrumpChoiceAction in {state.phase!r}")
+    partner = state.current_player
+    action_event = ActionTakenEvent(partner, action)
+    chosen_event = HalveTrumpChosenEvent(partner=partner, trump=action.trump.code)
+    transition = PhaseTransitionEvent(from_phase=Phase.HALVE_TRUMP, to_phase=Phase.BANKET)
+    new_state = state.replace(
+        trump=action.trump,
+        phase=Phase.BANKET,
+        events=(*state.events, action_event, chosen_event, transition),
+    )
+    return new_state, (action_event, chosen_event, transition)
+
+
+def _handle_vip_flip(
+    state: GameState, action: BaseAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if isinstance(action, VipFlipAction):
+        return _vip_flip_next(state)
+    if isinstance(action, VipStopAction):
+        return _vip_stop(state)
+    raise IllegalAction(f"Expected Vip{{Flip,Stop}}Action in {state.phase!r}")
+
+
+def _vip_flip_next(
+    state: GameState,
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    katten = state.katten
+    idx = sum(1 for f in katten.flipped if f)
+    if idx >= len(katten.cards):
+        raise RulesViolation("No more katten cards to flip")
+    card = katten.cards[idx]
+    new_flipped = tuple(True if i == idx else f for i, f in enumerate(katten.flipped))
+    new_katten = KattenState(cards=katten.cards, flipped=new_flipped, holder=katten.holder)
+    action_event = ActionTakenEvent(state.current_player, VipFlipAction())
+    flip_event = VipFlipEvent(index=idx, card=card)
+    new_state = state.replace(katten=new_katten, events=(*state.events, action_event, flip_event))
+    return new_state, (action_event, flip_event)
+
+
+def _vip_stop(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    katten = state.katten
+    # Trump = suit of the most-recently flipped card, or sans if it's a joker.
+    idx = sum(1 for f in katten.flipped if f) - 1
+    if idx < 0:
+        raise RulesViolation("Cannot stop before any flip")
+    revealed = katten.cards[idx]
+    # Joker revealed = sans (no trump); otherwise suit of the revealed card.
+    final_trump = Suit.Unknown if revealed == Card.joker else revealed.suit
+
+    action_event = ActionTakenEvent(state.current_player, VipStopAction())
+    stop_event = VipStoppedEvent(final_trump=final_trump.code, flip_count=idx + 1)
+    transition = PhaseTransitionEvent(from_phase=Phase.VIP_FLIP, to_phase=Phase.KATTEN_EXCHANGE)
+    new_state = state.replace(
+        trump=final_trump,
+        phase=Phase.KATTEN_EXCHANGE,
+        events=(*state.events, action_event, stop_event, transition),
+    )
+    return new_state, (action_event, stop_event, transition)
+
+
+def _handle_marker_placement(
+    state: GameState, action: BaseAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if isinstance(action, MarkerSkipAction):
+        return _marker_skip(state)
+    if isinstance(action, MarkerCardAction):
+        return _marker_place(state, action)
+    raise IllegalAction(f"Expected Marker{{Card,Skip}}Action in {state.phase!r}")
+
+
+def _marker_skip(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    action_event = ActionTakenEvent(state.current_player, MarkerSkipAction())
+    transition = PhaseTransitionEvent(from_phase=Phase.MARKER_PLACEMENT, to_phase=Phase.PLAYING)
+    new_state = state.replace(phase=Phase.PLAYING, events=(*state.events, action_event, transition))
+    return new_state, (action_event, transition)
+
+
+def _marker_place(
+    state: GameState, action: MarkerCardAction
+) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    caller = state.current_player
+    declarer = state.bid_winner
+    if caller != declarer:
+        raise RulesViolation("Only the declarer may place the marker card")
+
+    # Threshold: declarer must hold ≤ threshold cards of the partner-ace suit.
+    # The threshold comes from `Ruleset.marker_card_threshold`. We don't have
+    # a ruleset reference on state here — the reducer currently ignores the
+    # Ruleset (wired in phase 9+). Use the default value 1 for now.
+    marker_threshold = 1
+    declarer_hand = state.hands[declarer]
+    count_in_suit = sum(1 for c in declarer_hand.cards if c.suit == state.partner_ace)
+    if count_in_suit > marker_threshold:
+        raise RulesViolation(
+            f"Marker requires ≤{marker_threshold} of partner-ace suit; "
+            f"declarer holds {count_in_suit}"
+        )
+    if action.card not in declarer_hand.cards:
+        raise RulesViolation("Marker card must come from declarer's hand")
+
+    new_hand_cards = [c for c in declarer_hand.cards if c != action.card]
+    new_hands = dict(state.hands)
+    new_hands[declarer] = Deck(new_hand_cards)
+
+    action_event = ActionTakenEvent(declarer, action)
+    placed_event = MarkerPlacedEvent(player=declarer, claimed_suit=state.partner_ace.code)
+    # Marker placement reveals the partnership.
+    partner_reveal: tuple[BaseEvent, ...] = ()
+    assert state.partners is not None
+    partner_player = _find_partner_ace_player(state, state.partner_ace)
+    if partner_player is not None:
+        partner_reveal = (PartnerRevealedEvent(declarer=declarer, partner=partner_player),)
+
+    transition = PhaseTransitionEvent(from_phase=Phase.MARKER_PLACEMENT, to_phase=Phase.PLAYING)
+    new_state = state.replace(
+        hands=new_hands,
+        marker_card=action.card,
+        partner_ace_revealed=True,
+        phase=Phase.PLAYING,
+        events=(
+            *state.events,
+            action_event,
+            placed_event,
+            *partner_reveal,
+            transition,
+        ),
+    )
+    return new_state, (action_event, placed_event, *partner_reveal, transition)
+
+
 _PHASE_HANDLERS: dict[Phase, PhaseHandler] = {
     Phase.DEALING: _handle_dealing,
     Phase.BIDDING: _handle_bidding,
     Phase.BANKET: _handle_banket,
     Phase.CALLING: _handle_calling,
     Phase.PLAYING: _handle_playing,
-    # Stubs for phase 7-8:
-    Phase.KATTEN_EXCHANGE: _stub_for_phase(Phase.KATTEN_EXCHANGE, "phase 7 (katten)"),
-    Phase.VIP_FLIP: _stub_for_phase(Phase.VIP_FLIP, "phase 7 (vip-flip)"),
-    Phase.HALVE_TRUMP: _stub_for_phase(Phase.HALVE_TRUMP, "phase 7 (halve)"),
-    Phase.MARKER_PLACEMENT: _stub_for_phase(Phase.MARKER_PLACEMENT, "phase 7 (marker)"),
+    Phase.KATTEN_EXCHANGE: _handle_katten_exchange,
+    Phase.VIP_FLIP: _handle_vip_flip,
+    Phase.HALVE_TRUMP: _handle_halve_trump,
+    Phase.MARKER_PLACEMENT: _handle_marker_placement,
+    # Phase 8 lands the real scoring handler:
     Phase.SCORING: _stub_for_phase(Phase.SCORING, "phase 8 (scoring port)"),
     Phase.FINISHED: _stub_for_phase(Phase.FINISHED, "phase 8 (scoring port)"),
 }

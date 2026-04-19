@@ -265,6 +265,117 @@ class JernhaandDeclaredEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class KattenExchangedEvent(BaseEvent):
+    player: Player
+    took_count: int  # 0 or 3
+    # Discards are not exposed publicly — the dict only carries the count.
+    discards_count: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "katten_exchanged",
+            "player": self.player.to_dict(),
+            "took_count": self.took_count,
+            "discards_count": self.discards_count,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> KattenExchangedEvent:
+        return cls(
+            player=Player.from_dict(d["player"]),
+            took_count=int(d["took_count"]),
+            discards_count=int(d.get("discards_count", 0)),
+        )
+
+
+@dataclass(frozen=True)
+class VipFlipEvent(BaseEvent):
+    index: int  # 0-based flip position
+    card: Card
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "vip_flip_done", "index": self.index, "card": self.card.to_dict()}
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> VipFlipEvent:
+        return cls(index=int(d["index"]), card=Card.from_dict(d["card"]))
+
+
+@dataclass(frozen=True)
+class VipStoppedEvent(BaseEvent):
+    final_trump: str  # Suit code, or "_" for sans
+    flip_count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "vip_stopped",
+            "final_trump": self.final_trump,
+            "flip_count": self.flip_count,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> VipStoppedEvent:
+        return cls(final_trump=str(d["final_trump"]), flip_count=int(d["flip_count"]))
+
+
+@dataclass(frozen=True)
+class HalveTrumpChosenEvent(BaseEvent):
+    partner: Player
+    trump: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "halve_trump_chosen",
+            "partner": self.partner.to_dict(),
+            "trump": self.trump,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> HalveTrumpChosenEvent:
+        return cls(partner=Player.from_dict(d["partner"]), trump=str(d["trump"]))
+
+
+@dataclass(frozen=True)
+class MarkerPlacedEvent(BaseEvent):
+    player: Player
+    claimed_suit: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "marker_placed",
+            "player": self.player.to_dict(),
+            "claimed_suit": self.claimed_suit,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> MarkerPlacedEvent:
+        return cls(
+            player=Player.from_dict(d["player"]),
+            claimed_suit=str(d["claimed_suit"]),
+        )
+
+
+@dataclass(frozen=True)
+class PartnerRevealedEvent(BaseEvent):
+    declarer: Player
+    partner: Player
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "partner_revealed",
+            "declarer": self.declarer.to_dict(),
+            "partner": self.partner.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> PartnerRevealedEvent:
+        return cls(
+            declarer=Player.from_dict(d["declarer"]),
+            partner=Player.from_dict(d["partner"]),
+        )
+
+
+@dataclass(frozen=True)
 class KingCalledEvent(BaseEvent):
     """Declarer called a king (all-4-aces path)."""
 
@@ -305,6 +416,12 @@ _EVENT_TAGS: dict[str, type[BaseEvent]] = {
     "jernhaand_option": JernhaandOptionEvent,
     "jernhaand_declared": JernhaandDeclaredEvent,
     "king_called": KingCalledEvent,
+    "katten_exchanged": KattenExchangedEvent,
+    "vip_flip_done": VipFlipEvent,
+    "vip_stopped": VipStoppedEvent,
+    "halve_trump_chosen": HalveTrumpChosenEvent,
+    "marker_placed": MarkerPlacedEvent,
+    "partner_revealed": PartnerRevealedEvent,
 }
 
 
