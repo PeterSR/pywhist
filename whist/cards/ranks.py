@@ -19,11 +19,11 @@ class Rank(OrderedEnum):
     Joker = auto()
 
     @property
-    def name(self):
+    def name(self) -> str:
         return rank_name[self]
 
     @property
-    def symbol(self):
+    def symbol(self) -> str:
         return rank_symbol[self]
 
 

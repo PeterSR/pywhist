@@ -15,7 +15,7 @@ class ActionTakenEvent(BaseEvent):
     player: Player
     action: BaseAction
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Player {self.player.name}: {self.action}"
 
 
@@ -25,6 +25,6 @@ class TrickTakenEvent(BaseEvent):
     team_id: TeamID
     trick: Trick
 
-    def __str__(self):
+    def __str__(self) -> str:
         trick_symbols = tuple(card.symbol for card in self.trick)
         return f"Player {self.player.name} took {trick_symbols}"

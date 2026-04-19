@@ -1,3 +1,10 @@
+"""Clockwise iterator over players starting from the dealer + 1.
+
+The pre-revamp version mutated `self` inside `__iter__`, which broke nested
+iteration. This version yields a fresh generator each call.
+"""
+
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from .player import Player
@@ -9,25 +16,9 @@ class TableRound:
     players: list[Player]
     max_rounds: int = 1
 
-    def __iter__(self):
-        # Start dealing to the next player after the dealer.
-        self.index = self.next_index(self.players.index(self.dealer))
-        self.start_index = self.index
-        self.count = 0
-        self.round_count = 0
-        return self
-
-    def __next__(self):
-        if self.count > 0 and self.index == self.start_index:
-            self.round_count += 1
-
-            if self.round_count >= self.max_rounds:
-                raise StopIteration
-
-        p = self.players[self.index]
-        self.count += 1
-        self.index = self.next_index(self.index)
-        return p
-
-    def next_index(self, index):
-        return (index + 1) % len(self.players)
+    def __iter__(self) -> Iterator[Player]:
+        n = len(self.players)
+        start = (self.players.index(self.dealer) + 1) % n
+        for _ in range(self.max_rounds):
+            for offset in range(n):
+                yield self.players[(start + offset) % n]

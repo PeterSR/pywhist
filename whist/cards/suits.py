@@ -9,11 +9,11 @@ class Suit(OrderedEnum):
     Spade = auto()
 
     @property
-    def name(self):
+    def name(self) -> str:
         return suit_name[self]
 
     @property
-    def symbol(self):
+    def symbol(self) -> str:
         return suit_symbol[self]
 
 

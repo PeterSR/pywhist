@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from ..cards import Card, Deck, Suit, Trick
 from .events import BaseEvent
 from .partners import Partners, TeamID
+from .phase import Phase
 from .player import Player
 
 
@@ -31,7 +32,7 @@ class GameState:
     # Index in players
     turn: int = 0
 
-    phase: str = "dealing"
+    phase: Phase = Phase.DEALING
 
     def __post_init__(self):
         self.round_reset()
@@ -94,7 +95,7 @@ class GameStateView:
 
     @property
     def other_players(self):
-        players = tuple(p for p in self.state.players if p is not self.player)
+        players = tuple(p for p in self.state.players if p != self.player)
 
         hands = {}
 

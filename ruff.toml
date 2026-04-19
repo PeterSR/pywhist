@@ -26,6 +26,9 @@ ignore = [
 
 [lint.per-file-ignores]
 "tests/**" = ["PLR"]
+# Exception names are deliberately noun-phrased (not *Error-suffixed) because
+# they read better at call sites — raise IllegalAction("…") vs the longer form.
+"whist/errors.py" = ["N818"]
 
 [format]
 quote-style = "double"

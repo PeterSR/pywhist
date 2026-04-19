@@ -8,7 +8,7 @@ class Player:
     id: PlayerID
     name: str
 
-    def serialize(self):
+    def serialize(self) -> dict[str, object]:
         return {
             "id": self.id,
             "name": self.name,

@@ -5,9 +5,11 @@ from dataclasses import dataclass
 from itertools import product
 
 from ..cards import Card, Deck, Rank, Suit, suits
+from ..errors import IllegalAction, IllegalPhase
 from .actions import BaseAction, CallAction, PlayAction
 from .bids import Call
 from .events import ActionTakenEvent, TrickTakenEvent
+from .phase import Phase
 from .player import create_default_players
 from .state import GameState, Partners
 from .tableround import TableRound
@@ -51,7 +53,7 @@ class Game:
         )
 
     def deal(self):
-        self.state.phase = "dealing"
+        self.state.phase = Phase.DEALING
 
         deck = Deck.full_deck()
         deck.shuffle()
@@ -70,7 +72,7 @@ class Game:
 
         self.state.kitty = Deck.from_deck(deck)
 
-        self.state.phase = "calling"
+        self.state.phase = Phase.CALLING
 
         caller = next(iter(TableRound(self.state.dealer, self.state.players)))
         self.bid_winner = caller
@@ -85,42 +87,40 @@ class Game:
     def current_player(self):
         return self.state.current_player
 
-    def valid_actions(self, player):  # noqa: PLR0911  # rewritten in phase 6 (bidding)
+    def valid_actions(self, player):
         if player != self.current_player:
             return []
 
-        if self.state.phase == "calling":
-            calls = [
+        if self.state.phase == Phase.CALLING:
+            return [
                 CallAction(Call(trump, partner_ace)) for trump, partner_ace in product(suits, suits)
             ]
 
-            return calls
-
-        elif self.state.phase == "playing":
+        if self.state.phase == Phase.PLAYING:
             hand = self.state.hands[player]
             pile = self.state.pile
 
             if len(pile) == 0:
                 return [PlayAction(card) for card in hand]
+
+            first_card = pile.cards[0]
+
+            if first_card == Card.joker:
+                suits_from_hand = list(hand)
             else:
-                first_card = pile.cards[0]
+                if first_card.suit == self.state.partner_ace:
+                    partner_ace = Card(self.state.partner_ace, Rank.Ace)
+                    if partner_ace in hand:
+                        return [PlayAction(partner_ace)]
 
-                if first_card == Card.joker:
-                    suits_from_hand = hand
-                else:
-                    if first_card.suit == self.state.partner_ace:
-                        partner_ace = Card(self.state.partner_ace, Rank.Ace)
-                        if partner_ace in hand:
-                            return [PlayAction(partner_ace)]
+                suits_from_hand = [card for card in hand if card.suit is first_card.suit]
 
-                    suits_from_hand = [card for card in hand if card.suit is first_card.suit]
+            if len(suits_from_hand) > 0:
+                return [PlayAction(card) for card in suits_from_hand]
+            # Renons
+            return [PlayAction(card) for card in hand]
 
-                if len(suits_from_hand) > 0:
-                    return [PlayAction(card) for card in suits_from_hand]
-                else:  # Renons
-                    return [PlayAction(card) for card in hand]
-
-        return []
+        raise IllegalPhase(f"valid_actions: no dispatch for phase {self.state.phase!r}")
 
     def is_valid_action(self, player, action: PlayAction):
         if player != self.current_player:
@@ -141,7 +141,7 @@ class Game:
             partner_ace_player = self._determine_partner_ace_player()
             self.state.partners.bisect(self.bid_winner, partner_ace_player)
 
-            self.state.phase = "playing"
+            self.state.phase = Phase.PLAYING
         elif isinstance(action, PlayAction):
             state = self.state
             hand = state.hands[player]
@@ -184,7 +184,7 @@ class Game:
             else:
                 state.turn = (state.turn + 1) % state.num_players
         else:
-            raise TypeError(f"Invalid action: {action}")
+            raise IllegalAction(f"Unhandled action type: {action}")
 
         return True
 
