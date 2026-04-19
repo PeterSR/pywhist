@@ -61,6 +61,36 @@ class TrickTakenEventSchema(msgspec.Struct, tag="trick_taken", tag_field="type")
 EventSchema = ActionTakenEventSchema | TrickTakenEventSchema
 
 
+class RulesetSchema(msgspec.Struct):
+    minimum_bid: int
+    bid_modifiers: list[str]
+    modifier_order: list[str]
+    nolo_ladder: list[str]
+    klor_legal_in_almindelig: bool
+    katten_exchange_mode: str
+    vip_exchange_mandatory: bool
+    halve_exchanger: str
+    first_lead: str
+    partner_ace_same_suit_as_trump: bool
+    marker_card_threshold: int
+    marker_card_can_trump: bool
+    selvmakker_multiplier: float
+    banket_enabled: bool
+    banket_window_tricks: int | None
+    nolo_gaa_med_settlement: str
+    vip_clubs_sans_bonus: bool
+    bordlaegger_base_points: int
+    ren_bordlaegger_base_points: int
+
+
+class SessionConfigSchema(msgspec.Struct):
+    end_mode: str
+    fixed_hands_count: int | None
+    target_points: int | None
+    time_limit_seconds: float | None
+    sit_out_rotation: str
+
+
 __all__ = [
     "ActionSchema",
     "ActionTakenEventSchema",
@@ -70,5 +100,7 @@ __all__ = [
     "EventSchema",
     "PlayActionSchema",
     "PlayerSchema",
+    "RulesetSchema",
+    "SessionConfigSchema",
     "TrickTakenEventSchema",
 ]

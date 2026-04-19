@@ -11,6 +11,7 @@ from .bids import Call
 from .events import ActionTakenEvent, TrickTakenEvent
 from .phase import Phase
 from .player import create_default_players
+from .ruleset import Ruleset
 from .state import GameState, Partners
 from .tableround import TableRound
 
@@ -22,8 +23,12 @@ class Game:
     """
 
     state: GameState = None
+    # Reference only in phase 3; not yet consulted. Phases 6+ switch on this.
+    ruleset: Ruleset = None
 
     def __post_init__(self):
+        if self.ruleset is None:
+            self.ruleset = Ruleset.petersmakker()
         if self.state is None:
             self.state = self.initial_state()
 
