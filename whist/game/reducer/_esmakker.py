@@ -697,8 +697,23 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
 
         new_turn = state.players.index(trick_winner)
 
-        # Last trick? Transition to SCORING → FINISHED inline.
-        if len(new_tricks) >= 13:
+        # Bordlægger / Ren Bordlægger: declarer's hand goes face-up once
+        # trick 1 is collected. Declarer is tracked in `bid_winner`.
+        new_hand_exposed = state.hand_exposed
+        if (
+            len(new_tricks) == 1
+            and state.bid_winner is not None
+            and _is_bordlaegger_bid(state.auction.top_bid)
+        ):
+            new_hand_exposed = state.hand_exposed | {state.bid_winner}
+
+        # Nolo capsize: if declarer's side has exceeded the trick target, the
+        # contract busts — end the hand early with CapsizeEvent + scoring.
+        should_end = len(new_tricks) >= 13 or _nolo_capsized(
+            state.auction.top_bid, new_trick_owner, state
+        )
+
+        if should_end:
             scoring_events = _compute_scoring(state, new_trick_owner, new_tricks)
             events_emitted = (*events_emitted, *scoring_events)
             new_state = state.replace(
@@ -708,6 +723,7 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
                 tricks=new_tricks,
                 trick_owner=new_trick_owner,
                 partner_ace_revealed=new_revealed,
+                hand_exposed=new_hand_exposed,
                 turn=new_turn,
                 phase=Phase.FINISHED,
                 events=(*state.events, *events_emitted),
@@ -721,6 +737,7 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
             tricks=new_tricks,
             trick_owner=new_trick_owner,
             partner_ace_revealed=new_revealed,
+            hand_exposed=new_hand_exposed,
             turn=new_turn,
             events=(*state.events, *events_emitted),
         )
@@ -735,6 +752,30 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
         )
 
     return new_state, events_emitted
+
+
+def _is_bordlaegger_bid(bid: NumberBid | NoloBid | None) -> bool:
+    return isinstance(bid, NoloBid) and bid.contract in (
+        NoloContract.BORDLAEGGER,
+        NoloContract.REN_BORDLAEGGER,
+    )
+
+
+def _nolo_capsized(
+    bid: NumberBid | NoloBid | None,
+    trick_owner: dict[int, Any],
+    state: GameState,
+) -> bool:
+    """True when a nolo declarer's side has exceeded the trick target."""
+    if not isinstance(bid, NoloBid):
+        return False
+    assert state.partners is not None
+    assert state.bid_winner is not None
+    declarer_team = state.partners.team_id(state.bid_winner)
+    taken = sum(1 for owner in trick_owner.values() if owner == declarer_team)
+    ren = (NoloContract.REN_SOL, NoloContract.REN_BORDLAEGGER)
+    target = 0 if bid.contract in ren else 1
+    return taken > target
 
 
 # ---- stubs for non-implemented phases ------------------------------------

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from whist.cards import Suit
-from whist.game.actions import GaaMedAction
+from whist.cards import Card, Deck, Rank, Suit
+from whist.game.actions import GaaMedAction, PlayAction
 from whist.game.bids import BidModifier, NoloBid, NoloContract, NumberBid, bid_rank
+from whist.game.events import CapsizeEvent
 from whist.game.game import Game
 from whist.game.phase import Phase
 from whist.game.reducer import apply
@@ -93,3 +94,108 @@ def test_gode_number_bid_still_beats_gode() -> None:
     eight_gode = NumberBid(8, BidModifier.GODE)
     seven_sans = NumberBid(7, BidModifier.SANS)
     assert bid_rank(eight_gode) > bid_rank(seven_sans)
+
+
+def _rig_nolo_in_play(game: Game, *, contract: NoloContract, declarer_idx: int = 0) -> None:
+    """Put `game` into PLAYING with a nolo contract and a rigged pile.
+
+    Declarer leads a winning card; the others follow with losing cards so the
+    declarer wins trick 1. Trump is sans (Suit.Unknown).
+    """
+    declarer = game.state.players[declarer_idx]
+    # Rig declarer's hand to have an Ace of Hearts (sure winner at sans).
+    ace_h = Card(Suit.Heart, Rank.Ace)
+    other_h_cards = [
+        Card(Suit.Heart, Rank.Two),
+        Card(Suit.Heart, Rank.Three),
+        Card(Suit.Heart, Rank.Four),
+    ]
+    hands = dict(game.state.hands)
+    hands[declarer] = Deck([ace_h] + [Card(Suit.Club, r) for r in list(Rank)[:12]])
+    for i, p in enumerate(game.state.players):
+        if p == declarer:
+            continue
+        hands[p] = Deck(
+            [other_h_cards[i - 1 if i > declarer_idx else i]]
+            + [Card(Suit.Spade, r) for r in list(Rank)[:12]]
+        )
+    game.state = game.state.replace(
+        hands=hands,
+        phase=Phase.PLAYING,
+        bid_winner=declarer,
+        trump=Suit.Unknown,
+        turn=declarer_idx,
+        auction=AuctionState(top_bid=NoloBid(contract), top_bidder=declarer),
+    )
+
+
+def test_nolo_ren_sol_capsizes_on_first_trick_won() -> None:
+    """Ren Sol target = 0. Declarer winning trick 1 → CapsizeEvent, hand ends."""
+    game = Game(seed=200)
+    game.deal()
+    _rig_nolo_in_play(game, contract=NoloContract.REN_SOL)
+    declarer = game.state.bid_winner
+    assert declarer is not None
+
+    # Declarer leads Ace of Hearts; others follow.
+    game.take_action(declarer, PlayAction(Card(Suit.Heart, Rank.Ace)))
+    for p in (game.state.players[i] for i in (1, 2, 3)):
+        card = next(c for c in game.state.hands[p].cards if c.suit == Suit.Heart)
+        game.take_action(p, PlayAction(card))
+
+    state = game.state
+    assert state.phase == Phase.FINISHED
+    assert any(isinstance(e, CapsizeEvent) for e in state.events)
+
+
+def test_nolo_sol_survives_first_trick_won_capsizes_on_second() -> None:
+    """Sol target = 1. First trick OK; second trick won → capsize."""
+    game = Game(seed=201)
+    game.deal()
+    _rig_nolo_in_play(game, contract=NoloContract.SOL)
+    declarer = game.state.bid_winner
+    assert declarer is not None
+
+    # Trick 1: declarer wins.
+    game.take_action(declarer, PlayAction(Card(Suit.Heart, Rank.Ace)))
+    for p in (game.state.players[i] for i in (1, 2, 3)):
+        card = next(c for c in game.state.hands[p].cards if c.suit == Suit.Heart)
+        game.take_action(p, PlayAction(card))
+
+    # Still playing — only 1 trick for declarer, target is 1.
+    assert game.state.phase == Phase.PLAYING
+    assert not any(isinstance(e, CapsizeEvent) for e in game.state.events)
+
+    # Trick 2: declarer leads clubs; everyone follows clubs. Declarer's Two
+    # beats other threes/fours? Actually at sans, highest rank wins. Rig hands.
+    # Simpler: have declarer lead clubs Ace, others follow clubs.
+    clubs_in_hand = [c for c in game.state.hands[declarer].cards if c.suit == Suit.Club]
+    # Declarer leads — their own 2 of Clubs.
+    game.take_action(declarer, PlayAction(clubs_in_hand[0]))
+    for p in (game.state.players[i] for i in (1, 2, 3)):
+        card = next(c for c in game.state.hands[p].cards if c.suit == Suit.Spade)
+        # At sans-trump, led suit clubs, spade is off-suit → loses. So declarer wins.
+        game.take_action(p, PlayAction(card))
+
+    assert game.state.phase == Phase.FINISHED
+    assert any(isinstance(e, CapsizeEvent) for e in game.state.events)
+
+
+def test_bordlaegger_declarer_hand_exposed_after_trick_1() -> None:
+    """Bordlægger: declarer's hand face-up once trick 1 collected."""
+    game = Game(seed=202)
+    game.deal()
+    _rig_nolo_in_play(game, contract=NoloContract.BORDLAEGGER, declarer_idx=0)
+    declarer = game.state.bid_winner
+    assert declarer is not None
+    assert declarer not in game.state.hand_exposed
+
+    # Declarer wins trick 1.
+    game.take_action(declarer, PlayAction(Card(Suit.Heart, Rank.Ace)))
+    for p in (game.state.players[i] for i in (1, 2, 3)):
+        card = next(c for c in game.state.hands[p].cards if c.suit == Suit.Heart)
+        game.take_action(p, PlayAction(card))
+
+    # Bordlægger target is 1, so a single trick doesn't capsize.
+    # Declarer is exposed regardless of who won trick 1.
+    assert declarer in game.state.hand_exposed

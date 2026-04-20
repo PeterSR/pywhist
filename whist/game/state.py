@@ -411,6 +411,9 @@ class GameStateView:
             "other_hand_sizes": {
                 str(p.id): len(s.hands[p].cards) for p in s.players if p != self.player
             },
+            "exposed_hands": {
+                str(p.id): s.hands[p].to_list() for p in s.hand_exposed if p != self.player
+            },
             "pile": s.pile.to_list(),
             "pile_play": [p.to_dict() for p in s.pile_play],
             "tricks": [[c.to_dict() for c in trick] for trick in s.tricks],
