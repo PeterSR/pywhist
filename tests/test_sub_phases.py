@@ -271,3 +271,32 @@ def test_marker_place_emits_partner_revealed_when_partner_exists() -> None:
     chosen = next(c for c in game.state.hands[declarer].cards if c.suit == partner_ace_suit)
     _, events = apply(game.state, MarkerCardAction(card=chosen))
     assert any(isinstance(e, PartnerRevealedEvent) for e in events)
+
+
+def test_marker_place_selvmakker_own_hand_skips_partner_reveal() -> None:
+    """Declarer holds the partner-ace themselves (selvmakker-via-own-hand):
+    marker placement should NOT emit PartnerRevealedEvent(declarer, declarer).
+    """
+    game = Game(seed=110)
+    game.deal()
+    declarer = game.state.players[0]
+    partner_ace_suit = Suit.Heart
+    # Rig declarer's hand: exactly 1 heart — the Ace of Hearts.
+    ace_card = Card(partner_ace_suit, Rank.Ace)
+    declarer_hand = [ace_card] + [
+        Card(s, r)
+        for s in (Suit.Club, Suit.Diamond, Suit.Spade)
+        for r in (Rank.Two, Rank.Three, Rank.Four, Rank.Five)
+    ]
+    rigged_hands = dict(game.state.hands)
+    rigged_hands[declarer] = Deck(declarer_hand)
+    game.state = game.state.replace(
+        hands=rigged_hands,
+        phase=Phase.MARKER_PLACEMENT,
+        bid_winner=declarer,
+        partner_ace=partner_ace_suit,
+        turn=game.state.players.index(declarer),
+    )
+
+    _, events = apply(game.state, MarkerCardAction(card=ace_card))
+    assert not any(isinstance(e, PartnerRevealedEvent) for e in events)

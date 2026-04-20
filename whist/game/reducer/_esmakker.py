@@ -975,11 +975,13 @@ def _marker_place(
 
     action_event = ActionTakenEvent(declarer, action)
     placed_event = MarkerPlacedEvent(player=declarer, claimed_suit=state.partner_ace.code)
-    # Marker placement reveals the partnership.
+    # Marker placement reveals the partnership. In selvmakker (declarer holds
+    # the partner-ace, or the ace was discarded into katten) there is no
+    # distinct partner to announce — skip the reveal event.
     partner_reveal: tuple[BaseEvent, ...] = ()
     assert state.partners is not None
     partner_player = _find_partner_ace_player(state, state.partner_ace)
-    if partner_player is not None:
+    if partner_player is not None and partner_player != declarer:
         partner_reveal = (PartnerRevealedEvent(declarer=declarer, partner=partner_player),)
 
     transition = PhaseTransitionEvent(from_phase=Phase.MARKER_PLACEMENT, to_phase=Phase.PLAYING)

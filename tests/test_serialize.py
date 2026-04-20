@@ -14,12 +14,19 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from whist.cards import Card, Deck, Rank, Suit, suits
-from whist.game.actions import BaseAction, CallAction, PlayAction, action_from_dict
+from whist.game.actions import (
+    BaseAction,
+    BidWhistBidAction,
+    CallAction,
+    PlayAction,
+    action_from_dict,
+)
 from whist.game.bids import Call
 from whist.game.events import ActionTakenEvent, TrickTakenEvent, event_from_dict
 from whist.game.game import Game
 from whist.game.partners import Partners, TeamID
 from whist.game.player import Player, create_default_players
+from whist.game.ruleset import Ruleset
 from whist.game.state import GameState, GameStateView
 from whist.serialize import (
     action_from_json,
@@ -276,6 +283,32 @@ def test_game_state_view_serialize_shape() -> None:
     # Partners hidden until partner_ace_revealed
     if not state.partner_ace_revealed:
         assert out["partners_revealed"] == []
+
+
+def test_variant_field_roundtrips_in_state_to_dict() -> None:
+    """state.variant survives to_dict / from_dict for all three values."""
+    for ruleset in (Ruleset.default(), Ruleset.classic(), Ruleset.bid_whist()):
+        game = Game(seed=10, ruleset=ruleset)
+        game.deal()
+        d = game.state.to_dict()
+        assert d["variant"] == ruleset.variant
+        rebuilt = GameState.from_dict(d)
+        assert rebuilt.variant == ruleset.variant
+
+
+def test_bid_whist_auction_roundtrips() -> None:
+    """BidWhistAuctionState with a populated top bid survives to_dict/from_dict."""
+    game = Game(seed=11, ruleset=Ruleset.bid_whist())
+    game.deal()
+    # Place one bid so the auction state is non-trivial.
+    game.take_action(game.current_player, BidWhistBidAction(level=4, trump=Suit.Spade))
+
+    d = game.state.to_dict()
+    rebuilt = GameState.from_dict(d)
+    assert rebuilt.bid_whist_auction.top_level == 4
+    assert rebuilt.bid_whist_auction.top_trump == "S"
+    assert rebuilt.bid_whist_auction.top_bidder is not None
+    assert len(rebuilt.bid_whist_auction.bids) == 1
 
 
 def test_game_state_view_event_cursor() -> None:
