@@ -65,10 +65,7 @@ def event_from_json(data: bytes | str) -> BaseEvent:
 
 
 def state_from_json(data: bytes | str) -> GameState:
-    """Decode a full (non-redacted) game state from JSON.
-
-    No msgspec schema yet — `GameStateSchema` lands with phase 4.
-    """
+    """Decode a full (non-redacted) game state from JSON."""
     d = msgspec.json.decode(data)
     return GameState.from_dict(d)
 

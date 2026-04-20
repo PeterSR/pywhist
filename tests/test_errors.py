@@ -31,9 +31,8 @@ def test_take_action_rejects_non_action():
 
 
 def test_valid_actions_returns_empty_during_dealing():
-    # Phase 5 turned the phase machine into a dispatch table: phases with no
-    # player-facing actions return `[]` rather than raising. DEALING is one of
-    # those (no one acts during the deal).
+    # The phase-dispatch contract: phases with no player-facing actions
+    # return `[]` rather than raising. DEALING is one of those.
     game = Game()
     assert game.state.phase == Phase.DEALING
     assert game.valid_actions(game.current_player) == []

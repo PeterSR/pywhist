@@ -1,7 +1,6 @@
 """Clockwise iterator over players starting from the dealer + 1.
 
-The pre-revamp version mutated `self` inside `__iter__`, which broke nested
-iteration. This version yields a fresh generator each call.
+`__iter__` yields a fresh generator each call, so nested iteration is safe.
 """
 
 from collections.abc import Iterator

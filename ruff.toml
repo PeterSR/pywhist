@@ -16,8 +16,6 @@ select = [
     "PTH",  # use pathlib
     "TRY",  # tryceratops (error handling)
 ]
-# NOTE: `ANN` (flake8-annotations) is deliberately NOT selected during phase 0
-# of the revamp. Phase 1 will do the full type-hygiene pass and switch ANN on.
 ignore = [
     "PLR0913", # too-many-arguments — we're reducer-heavy
     "PLR2004", # magic-value-comparison — noisy for game rules

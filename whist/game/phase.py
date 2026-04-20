@@ -32,9 +32,8 @@ class Phase(StrEnum):
     SCORING = "scoring"
     FINISHED = "finished"
 
-    # The pre-revamp codebase used "calling" for the combined trump+partner-ace
-    # selection that the current Game.take_action still dispatches on. Keep
-    # this as an alias until the bidding phase (phase 6) replaces it.
+    # Legacy combined trump+partner-ace selection phase, dispatched on by
+    # `Game.take_action` for callers that haven't migrated to the auction.
     CALLING = "calling"
 
 

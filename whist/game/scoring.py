@@ -1,7 +1,7 @@
 """Esmakker Whist scoring.
 
-Ported from `whist-score/src/util/score.js` (the family's reference) and
-extended with zero-sum settlement and selvmakker multiplier.
+Covers base points, modifier and banket multipliers, overtrick scaling,
+zero-sum settlement, and the selvmakker multiplier.
 """
 
 from __future__ import annotations

@@ -1,9 +1,7 @@
 """Bidding types — bid ladder, rank, and the klør-almindelig auto-rewrite.
 
-Phase 6 rewrote this module from scratch (the pre-revamp contents were a
-three-field dataclass stub). The `Call` type is kept around for backward
-compatibility while `CallAction` still drives the post-auction trump +
-partner-ace selection (see `phase.Phase.CALLING`).
+The legacy `Call` type is kept here because `CallAction` still drives the
+post-auction trump + partner-ace selection (see `phase.Phase.CALLING`).
 """
 
 from __future__ import annotations
@@ -70,8 +68,7 @@ _MODIFIER_ORDER: tuple[BidModifier, ...] = (
 )
 
 # Nolo contracts are inserted AFTER level N's modifier group — Sol after 9,
-# Ren Sol after 10, Bordlægger after 11, Ren Bordlægger after 12. Matches the
-# canonical Whistklubben ladder described in spec §3.1.
+# Ren Sol after 10, Bordlægger after 11, Ren Bordlægger after 12.
 _NOLO_INSERT_AFTER: dict[int, NoloContract] = {
     9: NoloContract.SOL,
     10: NoloContract.REN_SOL,
@@ -119,7 +116,7 @@ def rewrite_klor_almindelig(b: Bid, trump: Suit | None) -> Bid:
     return b
 
 
-# ---- legacy `Call` (pre-revamp; still used by CALLING phase) --------------
+# ---- legacy `Call` (still used by the CALLING phase) ---------------------
 
 
 @dataclass

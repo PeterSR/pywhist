@@ -1,12 +1,7 @@
-"""Plain-text CLI driver — runs a match, prints hand-by-hand results.
+"""Plain-text CLI driver.
 
-Phase 11 delivers a minimum-viable interactive entry point:
-
-- `pywhist` launches a 4-player, single-hand game driven by a random AI for
-  all seats. It plays the hand to completion and prints the scoreboard.
-- The heavy interactive path (human input, seat config, pretty rendering)
-  remains deferred — this scaffold keeps the CLI reachable without shipping
-  a TUI that would need near-constant maintenance against the reducer.
+`pywhist` launches a 4-player, single-hand game driven by a random AI for all
+seats, plays the hand to completion, and prints the scoreboard.
 """
 
 from __future__ import annotations

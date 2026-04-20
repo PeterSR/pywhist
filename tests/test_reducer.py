@@ -1,11 +1,10 @@
 """Pure-reducer property tests.
 
-Covers the four DoD items from phase 4:
 (a) `apply` is pure — same input → same output, no mutation of input state.
 (b) Events are deterministic under a seeded RNG.
 (c) Replay invariant — `(initial_state, action_sequence)` reconstructs the
     final state (via `apply` step-by-step).
-(d) Benchmark — 1000 complete hands in < 1s on this machine.
+(d) Benchmark — 1000 complete hands in well under a second.
 """
 
 from __future__ import annotations

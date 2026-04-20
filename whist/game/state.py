@@ -18,7 +18,7 @@ class AuctionState:
 
     `passed` excludes `gaa_med` members — gå-med players forfeit the right
     to overcall but aren't "passed" in the sense of being out of the
-    contract. See spec §3.3.1.
+    contract.
     """
 
     bids: tuple[tuple[Player, Bid], ...] = ()

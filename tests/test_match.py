@@ -1,4 +1,4 @@
-"""Phase 10 — Match + scoreboard + session end modes."""
+"""Match layer: scoreboard, sit-out rotation, session-end modes."""
 
 from __future__ import annotations
 

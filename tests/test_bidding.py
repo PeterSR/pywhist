@@ -1,6 +1,6 @@
-"""Phase 6 DoD: auction, banket, jernhaand, all-4-aces.
+"""Auction, banket, jernhaand, all-4-aces.
 
-Covers the test list from the plan:
+Covers:
 - minimum bid 7
 - klør-almindelig → gode auto-rewrite
 - modifier ordering within a level (BID_LADDER)

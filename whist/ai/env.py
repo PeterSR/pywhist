@@ -2,7 +2,7 @@
 
 One hand per episode by default (`WhistEnv`); a full match is a separate
 wrapper (`WhistMatchEnv`). Multi-agent: the environment yields the current
-player's observation on each step; `whist-ai` is responsible for turn-taking
+player's observation on each step; the caller is responsible for turn-taking
 between seats (the env does not hide information on its own beyond the
 `GameStateView` redaction).
 """
@@ -67,7 +67,7 @@ class WhistEnv:
         assert self.game.state is not None
         view = GameStateView(self.game.state, self.game.current_player)
         legal = self.legal_actions()
-        # IDs = enumerate(legal). `whist-ai` is free to remap; the env only
+        # IDs = enumerate(legal). Callers are free to remap; the env only
         # guarantees that `step(legal[i])` is safe.
         legal_ids = tuple(range(len(legal)))
         return Observation(
@@ -84,8 +84,8 @@ class WhistMatchEnv:
 
     Wraps `WhistEnv` and keeps the scoreboard running; `reset(seed)` starts a
     fresh match; `done` fires when the configured session-end mode triggers.
-    Phase 12 scope is the plumbing — training-loop ergonomics (action
-    masking, reward normalization) live in whist-ai.
+    Training-loop ergonomics (action masking, reward normalization) are left
+    to the caller.
     """
 
     def __init__(self, *, fixed_hands: int = 10) -> None:

@@ -1,9 +1,9 @@
 """Thin session wrapper over `Game`. Hosts the scoreboard and sit-out policy.
 
 Sit-out rotation is `manual` by default: the caller picks which 4 of N
-registered players are active for each hand. `clockwise` and `longest_out`
-are scaffolded in `SessionConfig` but only the default is wired here — see
-the rule spec §9 for the full mapping.
+registered players are active for each hand. The `clockwise` and
+`longest_out` modes on `SessionConfig` fall back to the first 4 registered
+until their rotation logic is wired in.
 """
 
 from __future__ import annotations
@@ -51,9 +51,8 @@ class Match:
 
     def start_hand(self, active: list[Player] | None = None) -> Game:
         """Pick 4 active seats and construct a fresh `Game`. If `active` is
-        None, sits out players according to `sit_out_rotation`. Only the
-        `manual` mode is wired here (phase 10 scope); other modes fall back
-        to "take the first 4 registered".
+        None, the first 4 registered players are used (other rotation modes
+        are not yet wired in).
         """
         if active is None:
             active = list(self.state.registered[:4])

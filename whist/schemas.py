@@ -11,9 +11,8 @@ Domain types (`@dataclass(frozen=True)` in `whist.game`) stay plain Python; no
 msgspec import in `whist/cards/*`, `whist/game/*`. msgspec lives here and in
 `whist/serialize.py` only.
 
-A full `GameStateSchema` arrives with phase 4 once `GameState` is frozen and
-stable. For now, state roundtrips go via plain dicts (see
-`GameState.serialize` / `GameState.from_dict`).
+State roundtrips go via plain dicts (see `GameState.serialize` /
+`GameState.from_dict`).
 """
 
 from __future__ import annotations

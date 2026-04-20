@@ -1,4 +1,4 @@
-"""Phase 8 — port of whist-score + zero-sum property tests."""
+"""Scoring unit tests + zero-sum invariant property tests."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from whist.game.scoring import (
 
 
 def test_base_points_matches_whist_score_number_bids() -> None:
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     expected = {7: 5, 8: 10, 9: 20, 10: 40, 11: 80, 12: 160, 13: 320}
     for level, want in expected.items():
         bid = NumberBid(level, BidModifier.GODE)
@@ -30,7 +30,7 @@ def test_base_points_matches_whist_score_number_bids() -> None:
 
 
 def test_base_points_nolo() -> None:
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     assert base_points(NoloBid(NoloContract.SOL), ruleset) == 50
     assert base_points(NoloBid(NoloContract.REN_SOL), ruleset) == 100
 
@@ -54,7 +54,7 @@ def test_modifier_multiplier_doubles_for_halve_vip_sans() -> None:
 
 def test_gode_made_at_target_yields_base() -> None:
     # 7 gode, made exactly 7 tricks, no banket → base 5 x (0 over + 1) = 5.
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     ctx = ScoringContext(
         bid=NumberBid(7, BidModifier.GODE),
         trump=Suit.Club,
@@ -70,7 +70,7 @@ def test_gode_made_at_target_yields_base() -> None:
 
 def test_gode_overtricks_added_linearly() -> None:
     # 7 gode +2 overtricks = base 5 x 3 = 15.
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     ctx = ScoringContext(
         bid=NumberBid(7, BidModifier.GODE),
         trump=Suit.Heart,
@@ -86,7 +86,7 @@ def test_gode_overtricks_added_linearly() -> None:
 
 def test_broken_contract_negative() -> None:
     # 7 gode broken by 2 (5 tricks taken, target 7). base 5 x -2 x 2 = -20.
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     ctx = ScoringContext(
         bid=NumberBid(7, BidModifier.GODE),
         trump=Suit.Heart,
@@ -101,7 +101,7 @@ def test_broken_contract_negative() -> None:
 
 
 def test_banket_doubles_magnitude() -> None:
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     base_ctx = ScoringContext(
         bid=NumberBid(7, BidModifier.GODE),
         trump=Suit.Heart,
@@ -140,7 +140,7 @@ def test_banket_doubles_magnitude() -> None:
 
 
 def test_distribution_zero_sum_normal_case() -> None:
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     players = create_default_players()
     deltas = distribute(
         magnitude=50,
@@ -176,7 +176,7 @@ def test_distribution_zero_sum_selvmakker() -> None:
 
 
 def test_distribution_zero_sum_negative_magnitude() -> None:
-    ruleset = Ruleset.petersmakker()
+    ruleset = Ruleset.default()
     players = create_default_players()
     deltas = distribute(
         magnitude=-40,

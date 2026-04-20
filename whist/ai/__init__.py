@@ -1,7 +1,7 @@
 """Gym-style environment wrappers around `Game` for RL training.
 
-The heavy-lifting (policy networks, training loops) lives in `whist-ai` —
-this package exposes only the environment surface and the seeded baseline AI.
+Policy networks and training loops are out of scope — this package exposes
+only the environment surface and the seeded baseline AI.
 """
 
 from .env import WhistEnv, WhistMatchEnv

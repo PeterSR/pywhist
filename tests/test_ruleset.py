@@ -1,8 +1,9 @@
-"""Pin the preset values against rules spec §9.
+"""Pin the default Ruleset preset values.
 
 If a default drifts, this test fails and forces someone to either (a) update
-the spec, or (b) revert the drift. Without this, a reducer branch could
-silently flip a default and nobody would notice until a hand scored wrong.
+the pinned values, or (b) revert the drift. Without this, a reducer branch
+could silently flip a default and nobody would notice until a hand scored
+wrong.
 """
 
 from __future__ import annotations
@@ -21,11 +22,11 @@ from whist.game.ruleset import (
 from whist.match.session import SessionConfig
 from whist.match.state import MatchState
 
-# ---- petersmakker preset pinned to spec §9 ----
+# ---- default preset pinned ----
 
 
-def test_petersmakker_matches_spec_9() -> None:
-    r = Ruleset.petersmakker()
+def test_default_preset_pinned_values() -> None:
+    r = Ruleset.default()
 
     # Bidding
     assert r.minimum_bid == 7
@@ -67,26 +68,26 @@ def test_petersmakker_matches_spec_9() -> None:
     assert r.ren_bordlaegger_base_points == 400
 
 
-def test_ai_training_currently_matches_petersmakker() -> None:
+def test_ai_training_currently_matches_default() -> None:
     # ai_training() is a distinct preset so we can drift it without touching
     # the human default. For now the two are equal by construction.
-    assert Ruleset.ai_training() == Ruleset.petersmakker()
+    assert Ruleset.ai_training() == Ruleset.default()
 
 
 def test_ruleset_is_hashable() -> None:
     # Frozen + immutable fields (tuples, frozensets) → hashable. Worth pinning
     # because Match wants to key caches or records off a ruleset identity.
-    hash(Ruleset.petersmakker())
+    hash(Ruleset.default())
 
 
 def test_ruleset_is_frozen() -> None:
-    r = Ruleset.petersmakker()
+    r = Ruleset.default()
     with pytest.raises((AttributeError, Exception)):
         r.minimum_bid = 8  # type: ignore[misc]
 
 
 def test_defaults_consistent_with_module_level_constants() -> None:
-    r = Ruleset.petersmakker()
+    r = Ruleset.default()
     assert r.bid_modifiers == DEFAULT_BID_MODIFIERS
     assert r.modifier_order == DEFAULT_MODIFIER_ORDER
     assert r.nolo_ladder == DEFAULT_NOLO_LADDER
@@ -96,7 +97,7 @@ def test_defaults_consistent_with_module_level_constants() -> None:
 
 
 def test_ruleset_roundtrip() -> None:
-    r = Ruleset.petersmakker()
+    r = Ruleset.default()
     assert Ruleset.from_dict(r.to_dict()) == r
 
 
@@ -145,7 +146,7 @@ def test_session_config_is_frozen() -> None:
 
 def test_game_has_default_ruleset() -> None:
     g = Game()
-    assert g.ruleset == Ruleset.petersmakker()
+    assert g.ruleset == Ruleset.default()
 
 
 def test_game_accepts_custom_ruleset() -> None:
@@ -156,5 +157,5 @@ def test_game_accepts_custom_ruleset() -> None:
 
 def test_match_state_exposes_ruleset_and_session() -> None:
     ms = MatchState()
-    assert ms.ruleset == Ruleset.petersmakker()
+    assert ms.ruleset == Ruleset.default()
     assert ms.session_config == SessionConfig()

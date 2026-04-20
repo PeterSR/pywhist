@@ -1,12 +1,8 @@
 """Configurable rule flags.
 
-Mirrors the table in `.agent-workspace/peters-esmakker-whist-rules.md` §9. A
-`Ruleset` instance is attached to the session envelope (`Match`) and consulted
+A `Ruleset` instance is attached to the session envelope (`Match`) and consulted
 by the reducer for every rule-branching decision — no magic numbers in the
 reducer. `Ruleset` itself is immutable; variants don't change mid-session.
-
-BidModifier and NoloContract live here for now (both used by the Ruleset
-fields) and will be imported from here by the rewritten `bids.py` in phase 6.
 """
 
 from __future__ import annotations
@@ -66,8 +62,8 @@ DEFAULT_NOLO_LADDER: tuple[NoloContract, ...] = (
 class Ruleset:
     """Rule-of-play flags. One instance per `Match`.
 
-    Defaults match Peter's family rules (spec §9). Use `Ruleset.petersmakker()`
-    for the human default and `Ruleset.ai_training()` for the AI variant.
+    Defaults cover the canonical call-ace variant. Use `Ruleset.default()` for
+    the human preset and `Ruleset.ai_training()` for the RL-friendly preset.
     """
 
     # --- bidding ---
@@ -98,16 +94,16 @@ class Ruleset:
     ren_bordlaegger_base_points: int = 400
 
     @classmethod
-    def petersmakker(cls) -> Ruleset:
-        """Peter's family rules — the spec §9 default column."""
+    def default(cls) -> Ruleset:
+        """Canonical call-ace preset."""
         return cls()
 
     @classmethod
     def ai_training(cls) -> Ruleset:
-        """Ruleset used by `WhistEnv` for RL training (phase 12).
+        """Preset used by `WhistEnv` for RL training.
 
-        Currently identical to `petersmakker()` — kept as a distinct preset so
-        AI-specific simplifications (e.g. disabling banket to shrink the
+        Currently identical to `default()` — kept as a distinct preset so
+        RL-specific simplifications (e.g. disabling banket to shrink the
         action space) can land here without touching the human game.
         """
         return cls()

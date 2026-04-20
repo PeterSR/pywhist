@@ -122,8 +122,8 @@ class PassAction(BaseAction):
 class DetKanJegSelvAction(BaseAction):
     """'I can do that myself' — claim the overcaller's bid as your own.
 
-    See spec §3.3. Legal only for the player whose bid was just overcalled;
-    the reducer validates this.
+    Legal only for the player whose bid was just overcalled; the reducer
+    validates this.
     """
 
     def __str__(self) -> str:
@@ -225,7 +225,7 @@ class JernhaandDeclineAction(BaseAction):
         return cls(player=Player.from_dict(d["player"]))
 
 
-# ---- phase 7 sub-phase actions -------------------------------------------
+# ---- sub-phase actions ---------------------------------------------------
 
 
 @dataclass(frozen=True)

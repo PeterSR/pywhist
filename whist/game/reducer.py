@@ -452,7 +452,7 @@ def _redeal_all_pass(
     return new_state, events
 
 
-# ---- CALLING handler (reused from phase 4, extended for KingCallAction) --
+# ---- CALLING handler -----------------------------------------------------
 
 
 def _handle_calling(
@@ -475,7 +475,7 @@ def _apply_call(state: GameState, action: CallAction) -> tuple[GameState, tuple[
     partner_ace = action.call.partner_ace
 
     if trump == partner_ace and not _ruleset_allows_same_trump_partner(state):
-        raise RulesViolation("Partner-ace may not be the same suit as trump (§3.2.1)")
+        raise RulesViolation("Partner-ace may not be the same suit as trump")
 
     partner_player = _find_partner_ace_player(state, partner_ace)
 
@@ -506,15 +506,15 @@ def _apply_king_call(
     king_suit = action.king_suit
 
     if king_suit == trump:
-        raise RulesViolation("King-suit may not be the same as trump (§3.6)")
+        raise RulesViolation("King-suit may not be the same as trump")
 
     action_event = ActionTakenEvent(caller, action)
     king_event = KingCalledEvent(declarer=caller, trump=trump.code, king_suit=king_suit.code)
     transition = PhaseTransitionEvent(from_phase=Phase.CALLING, to_phase=Phase.BANKET)
 
     # For scoring / partnership we still need a "partner-ace"-like field.
-    # Represent the king-partner via partner_ace set to king_suit; the reducer
-    # play logic uses the king (not ace) for forced-play detection in phase 7.
+    # Represent the king-partner via partner_ace set to king_suit; the play
+    # logic uses the king (not ace) for forced-play detection here.
     new_state = state.replace(
         trump=trump,
         partner_ace=king_suit,
@@ -680,12 +680,13 @@ def _next_banket_deciding_player(state: GameState) -> Player | None:
 
 
 def _first_lead_player(state: GameState) -> Player:
-    # Default per spec: forhand (left of dealer). Configurable via Ruleset in phase 9+.
+    # Default: forhand (left of dealer). The Ruleset.first_lead flag can
+    # switch this to declarer once the reducer is threaded with the ruleset.
     assert state.dealer is not None
     return next(iter(TableRound(state.dealer, list(state.players))))
 
 
-# ---- PLAYING handler (phase 4, unchanged) --------------------------------
+# ---- PLAYING handler -----------------------------------------------------
 
 
 def _handle_playing(
@@ -770,13 +771,13 @@ def _apply_play(state: GameState, action: PlayAction) -> tuple[GameState, tuple[
     return new_state, events_emitted
 
 
-# ---- stubs (remain from phase 5 for non-implemented phases) --------------
+# ---- stubs for non-implemented phases ------------------------------------
 
 
-def _stub_for_phase(phase: Phase, pending_in: str) -> PhaseHandler:
+def _stub_for_phase(phase: Phase, reason: str) -> PhaseHandler:
     def handler(state: GameState, action: BaseAction) -> tuple[GameState, tuple[BaseEvent, ...]]:
         _ = state, action
-        raise NotImplementedError(f"phase {phase.value!r} pending (lands in {pending_in})")
+        raise NotImplementedError(f"phase {phase.value!r} not implemented: {reason}")
 
     handler.__name__ = f"_stub_{phase.value}"
     return handler
@@ -948,9 +949,8 @@ def _marker_place(
         raise RulesViolation("Only the declarer may place the marker card")
 
     # Threshold: declarer must hold ≤ threshold cards of the partner-ace suit.
-    # The threshold comes from `Ruleset.marker_card_threshold`. We don't have
-    # a ruleset reference on state here — the reducer currently ignores the
-    # Ruleset (wired in phase 9+). Use the default value 1 for now.
+    # The threshold comes from `Ruleset.marker_card_threshold`. The reducer
+    # currently lacks a ruleset reference here, so we use the default of 1.
     marker_threshold = 1
     declarer_hand = state.hands[declarer]
     count_in_suit = sum(1 for c in declarer_hand.cards if c.suit == state.partner_ace)
@@ -1034,10 +1034,10 @@ def _compute_scoring(
         others = [p for p in team_members if p != declarer]
         partner = others[0] if others else None
 
-    # Ruleset fallback (phase 8 can't yet see Game.ruleset from reducer).
-    ruleset = Ruleset.petersmakker()
+    # Ruleset fallback — the reducer doesn't yet see Game.ruleset here.
+    ruleset = Ruleset.default()
 
-    # vip_flip_count: Vip only; for phase 8 baseline we don't track; assume 1.
+    # vip_flip_count: tracked only for Vip bids; a baseline of 1 is assumed.
     vip_flip_count = 1 if isinstance(bid, NumberBid) and bid.modifier.value == "vip" else 0
 
     ctx = ScoringContext(
@@ -1082,9 +1082,10 @@ _PHASE_HANDLERS: dict[Phase, PhaseHandler] = {
     Phase.VIP_FLIP: _handle_vip_flip,
     Phase.HALVE_TRUMP: _handle_halve_trump,
     Phase.MARKER_PLACEMENT: _handle_marker_placement,
-    # Phase 8 lands the real scoring handler:
-    Phase.SCORING: _stub_for_phase(Phase.SCORING, "phase 8 (scoring port)"),
-    Phase.FINISHED: _stub_for_phase(Phase.FINISHED, "phase 8 (scoring port)"),
+    # SCORING and FINISHED are terminal — _handle_playing computes the score
+    # inline at trick 13 and transitions straight to FINISHED.
+    Phase.SCORING: _stub_for_phase(Phase.SCORING, "scored inline from PLAYING"),
+    Phase.FINISHED: _stub_for_phase(Phase.FINISHED, "hand is over"),
 }
 
 
@@ -1226,11 +1227,12 @@ def _all_four_aces(state: GameState, player: Player) -> bool:
 
 def _ruleset_allows_same_trump_partner(state: GameState) -> bool:
     _ = state
-    # Placeholder — phase 7 wires up the Ruleset flag properly. Default: false.
+    # Placeholder — once the ruleset is threaded into the reducer this should
+    # read `state.ruleset.partner_ace_same_suit_as_trump`. Default: false.
     return False
 
 
-# ---- play helpers (unchanged from phase 4) -------------------------------
+# ---- play helpers --------------------------------------------------------
 
 
 def _deck_without(deck: Deck, card: Card) -> Deck:

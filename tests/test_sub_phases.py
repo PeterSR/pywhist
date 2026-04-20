@@ -1,8 +1,6 @@
-"""Phase 7 tests — katten, vip-flip, halve-trump, marker sub-phases.
+"""Sub-phase handlers: katten, vip-flip, halve-trump, marker.
 
-The real user flow for sub-phases isn't wired yet (phase 9+ inserts them
-between BANKET and PLAYING per bid modifier). These tests exercise each
-sub-phase handler by constructing the state directly.
+Each sub-phase handler is exercised by constructing the state directly.
 """
 
 from __future__ import annotations

@@ -1,6 +1,6 @@
-"""Phase 12 — `WhistEnv` smoke tests.
+"""`WhistEnv` smoke tests.
 
-The real training loop lives in whist-ai; these tests exercise the plumbing.
+These exercise the env plumbing — the training loop itself is the caller's.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def test_observation_exposes_view_json_and_legal_ids() -> None:
 
 
 def test_hundred_episodes_clean() -> None:
-    # Scaled-down version of the plan's 1000-episode smoke (fast enough for CI).
+    # Bulk smoke across many seeds — scaled for CI, bump locally as needed.
     for seed in range(100):
         obs = _play_episode(seed)
         assert obs.done

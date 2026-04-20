@@ -50,7 +50,7 @@ class Game:
 
     def __post_init__(self) -> None:
         if self.ruleset is None:
-            self.ruleset = Ruleset.petersmakker()
+            self.ruleset = Ruleset.default()
         if self.seed is not None:
             self._rng = Random(self.seed)
         if self.state is None:

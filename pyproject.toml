@@ -64,9 +64,6 @@ exclude_also = [
 
 [tool.mypy]
 python_version = "3.12"
-# Phase 1 flips strict=true. Files being fully rewritten in later phases are
-# excluded here to keep CI green during the revamp; the exclusions narrow as
-# phases land.
 strict = true
 warn_unreachable = true
 warn_unused_ignores = true
@@ -75,10 +72,7 @@ show_error_codes = true
 exclude = [
     "build/",
     "dist/",
-    # Rewritten in phase 6 (bidding):
     "whist/game/bids.py",
-    # Phase 12 gym env doesn't require touching the legacy BaseAI / RandomAI
-    # which remain untyped; exclude them from strict mypy:
     "whist/game/ai.py",
 ]
 

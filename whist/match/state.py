@@ -17,7 +17,7 @@ from .session import SessionConfig
 class MatchState:
     registered: tuple[Player, ...] = ()
     scoreboard: Scoreboard = field(default_factory=Scoreboard)
-    ruleset: Ruleset = field(default_factory=Ruleset.petersmakker)
+    ruleset: Ruleset = field(default_factory=Ruleset.default)
     session_config: SessionConfig = field(default_factory=SessionConfig)
     hand_count: int = 0
     current_hand: GameState | None = None
