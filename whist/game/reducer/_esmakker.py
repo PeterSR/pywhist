@@ -31,8 +31,10 @@ from ..actions import (
     PassAction,
     PlayAction,
     ReBanketAction,
+    VipContinueAction,
     VipFlipAction,
     VipStopAction,
+    VipTakeoverAction,
 )
 from ..bids import (
     BidModifier,
@@ -65,6 +67,7 @@ from ..events import (
     TrickTakenEvent,
     VipFlipEvent,
     VipStoppedEvent,
+    VipTakeoverEvent,
 )
 from ..partners import Partners
 from ..phase import Phase
@@ -927,12 +930,19 @@ def _handle_vip_flip(
         return _vip_flip_next(state)
     if isinstance(action, VipStopAction):
         return _vip_stop(state)
-    raise IllegalAction(f"Expected Vip{{Flip,Stop}}Action in {state.phase!r}")
+    if isinstance(action, VipTakeoverAction):
+        return _vip_takeover(state)
+    if isinstance(action, VipContinueAction):
+        return _vip_continue(state)
+    raise IllegalAction(f"Expected Vip{{Flip,Stop,Takeover,Continue}}Action in {state.phase!r}")
 
 
 def _vip_flip_next(
     state: GameState,
 ) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    # Only the declarer may flip, and only when the poll queue is empty.
+    if state.vip_poll_queue:
+        raise RulesViolation("Cannot flip while gå-med poll is pending")
     katten = state.katten
     idx = sum(1 for f in katten.flipped if f)
     if idx >= len(katten.cards):
@@ -942,11 +952,23 @@ def _vip_flip_next(
     new_katten = KattenState(cards=katten.cards, flipped=new_flipped, holder=katten.holder)
     action_event = ActionTakenEvent(state.current_player, VipFlipAction())
     flip_event = VipFlipEvent(index=idx, card=card)
-    new_state = state.replace(katten=new_katten, events=(*state.events, action_event, flip_event))
+
+    # Reset the gå-med poll for this new trump candidate. Control passes to
+    # the first gå-med player (if any); otherwise it stays with declarer.
+    new_queue = state.auction.gaa_med
+    new_turn = state.players.index(new_queue[0]) if new_queue else state.turn
+    new_state = state.replace(
+        katten=new_katten,
+        vip_poll_queue=new_queue,
+        turn=new_turn,
+        events=(*state.events, action_event, flip_event),
+    )
     return new_state, (action_event, flip_event)
 
 
 def _vip_stop(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    if state.vip_poll_queue:
+        raise RulesViolation("Declarer cannot stop while gå-med poll is pending")
     katten = state.katten
     # Trump = suit of the most-recently flipped card, or sans if it's a joker.
     idx = sum(1 for f in katten.flipped if f) - 1
@@ -965,6 +987,81 @@ def _vip_stop(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
         events=(*state.events, action_event, stop_event, transition),
     )
     return new_state, (action_event, stop_event, transition)
+
+
+def _current_vip_trump(state: GameState) -> Suit:
+    """Suit of the most-recently flipped katten card, or sans on joker."""
+    katten = state.katten
+    idx = sum(1 for f in katten.flipped if f) - 1
+    if idx < 0:
+        raise RulesViolation("No Vip flip to act on")
+    revealed = katten.cards[idx]
+    return Suit.Unknown if revealed == Card.joker else revealed.suit
+
+
+def _vip_takeover(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    caller = state.current_player
+    if not state.vip_poll_queue or state.vip_poll_queue[0] != caller:
+        raise RulesViolation("Only the polled gå-med player may take over")
+
+    final_trump = _current_vip_trump(state)
+    idx = sum(1 for f in state.katten.flipped if f) - 1
+
+    action_event = ActionTakenEvent(caller, VipTakeoverAction())
+    takeover_event = VipTakeoverEvent(new_declarer=caller, trump=final_trump.code)
+    stop_event = VipStoppedEvent(final_trump=final_trump.code, flip_count=idx + 1)
+    transition = PhaseTransitionEvent(from_phase=Phase.VIP_FLIP, to_phase=Phase.KATTEN_EXCHANGE)
+
+    # The former declarer joins the gå-med list; the new declarer is pulled
+    # out so they no longer appear as going-along.
+    assert state.bid_winner is not None
+    new_gaa_med = tuple(p for p in state.auction.gaa_med if p != caller)
+    new_gaa_med = (*new_gaa_med, state.bid_winner)
+    new_auction = AuctionState(
+        bids=state.auction.bids,
+        passed=state.auction.passed,
+        current_bidder=None,
+        top_bid=state.auction.top_bid,
+        top_bidder=caller,
+        gaa_med=new_gaa_med,
+    )
+
+    new_state = state.replace(
+        bid_winner=caller,
+        trump=final_trump,
+        auction=new_auction,
+        vip_poll_queue=(),
+        phase=Phase.KATTEN_EXCHANGE,
+        events=(*state.events, action_event, takeover_event, stop_event, transition),
+    )
+    return new_state, (action_event, takeover_event, stop_event, transition)
+
+
+def _vip_continue(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
+    caller = state.current_player
+    if not state.vip_poll_queue or state.vip_poll_queue[0] != caller:
+        raise RulesViolation("Only the polled gå-med player may continue")
+
+    remaining = state.vip_poll_queue[1:]
+    action_event = ActionTakenEvent(caller, VipContinueAction())
+
+    if remaining:
+        new_turn = state.players.index(remaining[0])
+        new_state = state.replace(
+            vip_poll_queue=remaining,
+            turn=new_turn,
+            events=(*state.events, action_event),
+        )
+        return new_state, (action_event,)
+
+    # All gå-med players have passed — turn returns to declarer.
+    assert state.bid_winner is not None
+    new_state = state.replace(
+        vip_poll_queue=(),
+        turn=state.players.index(state.bid_winner),
+        events=(*state.events, action_event),
+    )
+    return new_state, (action_event,)
 
 
 def _handle_marker_placement(

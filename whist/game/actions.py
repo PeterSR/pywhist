@@ -295,13 +295,25 @@ class VipStopAction(BaseAction):
 
 @dataclass(frozen=True)
 class VipContinueAction(BaseAction):
-    """Keep flipping after a gå-med player declined to take over."""
+    """Gå-med player declines to take over the current Vip trump candidate."""
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": "vip_continue"}
 
     @classmethod
     def from_dict(cls, _d: Mapping[str, Any]) -> VipContinueAction:
+        return cls()
+
+
+@dataclass(frozen=True)
+class VipTakeoverAction(BaseAction):
+    """Gå-med player accepts the current Vip trump and takes over as declarer."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"type": "vip_takeover"}
+
+    @classmethod
+    def from_dict(cls, _d: Mapping[str, Any]) -> VipTakeoverAction:
         return cls()
 
 
@@ -395,6 +407,7 @@ _ACTION_TAGS: dict[str, type[BaseAction]] = {
     "vip_flip": VipFlipAction,
     "vip_stop": VipStopAction,
     "vip_continue": VipContinueAction,
+    "vip_takeover": VipTakeoverAction,
     "halve_trump": HalveTrumpChoiceAction,
     "marker": MarkerCardAction,
     "marker_skip": MarkerSkipAction,

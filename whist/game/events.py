@@ -319,6 +319,28 @@ class VipStoppedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class VipTakeoverEvent(BaseEvent):
+    """A gå-med player has accepted the current Vip trump and replaced declarer."""
+
+    new_declarer: Player
+    trump: str  # Suit code, or "_" for sans
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "vip_takeover",
+            "new_declarer": self.new_declarer.to_dict(),
+            "trump": self.trump,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> VipTakeoverEvent:
+        return cls(
+            new_declarer=Player.from_dict(d["new_declarer"]),
+            trump=str(d["trump"]),
+        )
+
+
+@dataclass(frozen=True)
 class HalveTrumpChosenEvent(BaseEvent):
     partner: Player
     trump: str
@@ -502,6 +524,7 @@ _EVENT_TAGS: dict[str, type[BaseEvent]] = {
     "katten_exchanged": KattenExchangedEvent,
     "vip_flip_done": VipFlipEvent,
     "vip_stopped": VipStoppedEvent,
+    "vip_takeover": VipTakeoverEvent,
     "halve_trump_chosen": HalveTrumpChosenEvent,
     "marker_placed": MarkerPlacedEvent,
     "partner_revealed": PartnerRevealedEvent,

@@ -18,9 +18,12 @@ from whist.game.actions import (
     KattenExchangeTakeAction,
     MarkerCardAction,
     MarkerSkipAction,
+    VipContinueAction,
     VipFlipAction,
     VipStopAction,
+    VipTakeoverAction,
 )
+from whist.game.bids import BidModifier, NumberBid
 from whist.game.events import (
     HalveTrumpChosenEvent,
     KattenExchangedEvent,
@@ -28,11 +31,12 @@ from whist.game.events import (
     PartnerRevealedEvent,
     VipFlipEvent,
     VipStoppedEvent,
+    VipTakeoverEvent,
 )
 from whist.game.game import Game
 from whist.game.phase import Phase
 from whist.game.reducer import apply
-from whist.game.state import KattenState
+from whist.game.state import AuctionState, KattenState
 
 # ---- katten exchange ----------------------------------------------------
 
@@ -124,6 +128,91 @@ def test_vip_flip_reveals_sequential_cards() -> None:
     assert s3.trump == Suit.Diamond
     assert s3.phase == Phase.KATTEN_EXCHANGE
     assert any(isinstance(e, VipStoppedEvent) for e in events3)
+
+
+def _rig_vip_flip(game: Game, *, cards: tuple[Card, ...], gaa_med_indices: tuple[int, ...]) -> None:
+    """Put game into VIP_FLIP with a 7-level VIP bid and the given gå-med list."""
+    players = game.state.players
+    declarer = players[0]
+    gaa_med = tuple(players[i] for i in gaa_med_indices)
+    game.state = game.state.replace(
+        phase=Phase.VIP_FLIP,
+        bid_winner=declarer,
+        turn=0,
+        katten=KattenState(cards=cards, flipped=(False,) * len(cards)),
+        auction=AuctionState(
+            top_bid=NumberBid(7, BidModifier.VIP),
+            top_bidder=declarer,
+            gaa_med=gaa_med,
+        ),
+    )
+
+
+def test_vip_flip_polls_gaa_med_then_takeover_switches_declarer() -> None:
+    game = Game(seed=120)
+    game.deal()
+    p0, p1, p2, _p3 = game.state.players
+    cards = (
+        Card(Suit.Heart, Rank.Five),
+        Card(Suit.Diamond, Rank.Seven),
+    )
+    _rig_vip_flip(game, cards=cards, gaa_med_indices=(1, 2))
+
+    # Declarer flips first card.
+    s1, _ = apply(game.state, VipFlipAction())
+    assert s1.vip_poll_queue == (p1, p2)
+    assert s1.current_player == p1
+
+    # Gå-med #1 passes.
+    s2, _ = apply(s1, VipContinueAction())
+    assert s2.current_player == p2
+
+    # Gå-med #2 takes over.
+    s3, events = apply(s2, VipTakeoverAction())
+    assert s3.phase == Phase.KATTEN_EXCHANGE
+    assert s3.bid_winner == p2
+    assert s3.trump == Suit.Heart
+    assert any(isinstance(e, VipTakeoverEvent) for e in events)
+    # Former declarer has joined the gå-med pool.
+    assert p0 in s3.auction.gaa_med
+    assert p2 not in s3.auction.gaa_med
+
+
+def test_vip_all_gaa_med_continue_returns_to_declarer() -> None:
+    game = Game(seed=121)
+    game.deal()
+    p0 = game.state.players[0]
+    cards = (
+        Card(Suit.Heart, Rank.Five),
+        Card(Suit.Diamond, Rank.Seven),
+    )
+    _rig_vip_flip(game, cards=cards, gaa_med_indices=(1, 2))
+
+    s1, _ = apply(game.state, VipFlipAction())
+    s2, _ = apply(s1, VipContinueAction())  # p1 passes
+    s3, _ = apply(s2, VipContinueAction())  # p2 passes
+    # Control is back to declarer.
+    assert s3.current_player == p0
+    assert s3.vip_poll_queue == ()
+
+    # Declarer stops — trump is hearts (first flipped).
+    s4, events = apply(s3, VipStopAction())
+    assert s4.trump == Suit.Heart
+    assert s4.phase == Phase.KATTEN_EXCHANGE
+    assert any(isinstance(e, VipStoppedEvent) for e in events)
+
+
+def test_vip_flip_without_gaa_med_leaves_control_with_declarer() -> None:
+    """Back-compat: if no gå-med players, flip loop stays with declarer."""
+    game = Game(seed=122)
+    game.deal()
+    p0, _p1, _p2, _p3 = game.state.players
+    cards = (Card(Suit.Club, Rank.Ten),)
+    _rig_vip_flip(game, cards=cards, gaa_med_indices=())
+
+    s1, _ = apply(game.state, VipFlipAction())
+    assert s1.vip_poll_queue == ()
+    assert s1.current_player == p0
 
 
 def test_vip_stop_on_joker_becomes_sans() -> None:

@@ -225,6 +225,10 @@ class GameState:
     # finishes (skip or take+discard). Each exchanger sees the discards of
     # the previous exchanger as their katten.
     katten_cycle: tuple[Player, ...] = ()
+    # Queue of gå-med players still to be polled after the latest Vip flip.
+    # Head = current polling candidate; when empty, control returns to
+    # declarer. A takeover by any candidate ends the cycle immediately.
+    vip_poll_queue: tuple[Player, ...] = ()
 
     @property
     def round(self) -> int:
@@ -277,6 +281,7 @@ class GameState:
             "hand_exposed": [p.to_dict() for p in self.hand_exposed],
             "bid_whist_auction": self.bid_whist_auction.to_dict(),
             "katten_cycle": [p.to_dict() for p in self.katten_cycle],
+            "vip_poll_queue": [p.to_dict() for p in self.vip_poll_queue],
         }
 
     @classmethod
@@ -313,6 +318,7 @@ class GameState:
             else BidWhistAuctionState()
         )
         katten_cycle = tuple(Player.from_dict(p) for p in d.get("katten_cycle", []))
+        vip_poll_queue = tuple(Player.from_dict(p) for p in d.get("vip_poll_queue", []))
 
         return cls(
             players=players,
@@ -342,6 +348,7 @@ class GameState:
             hand_exposed=hand_exposed,
             bid_whist_auction=bid_whist_auction,
             katten_cycle=katten_cycle,
+            vip_poll_queue=vip_poll_queue,
         )
 
 

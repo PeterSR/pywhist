@@ -24,6 +24,10 @@ from .actions import (
     PassAction,
     PlayAction,
     ReBanketAction,
+    VipContinueAction,
+    VipFlipAction,
+    VipStopAction,
+    VipTakeoverAction,
 )
 from .bids import BID_LADDER, BidModifier, Call, NoloBid, NumberBid, bid_rank
 from .partners import Partners, TeamID
@@ -261,6 +265,23 @@ class Game:
             return [PlayAction(card) for card in suits_from_hand]
         return [PlayAction(card) for card in hand]
 
+    def _valid_actions_vip_flip(self, player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        state = self.state
+        # If the gå-med poll is active, only the head of the queue may act.
+        if state.vip_poll_queue:
+            if player != state.vip_poll_queue[0]:
+                return []
+            return [VipContinueAction(), VipTakeoverAction()]
+        # Otherwise it's declarer's turn to stop or flip again.
+        actions: list[BaseAction] = []
+        flipped = sum(1 for f in state.katten.flipped if f)
+        if flipped > 0:
+            actions.append(VipStopAction())
+        if flipped < len(state.katten.cards):
+            actions.append(VipFlipAction())
+        return actions
+
     @staticmethod
     def _valid_actions_none(_self: Game, _player: Player) -> list[BaseAction]:
         """Stub — phase has no player-facing actions yet."""
@@ -312,7 +333,7 @@ Game._VALID_ACTIONS_DISPATCH = {
     Phase.CALLING: Game._valid_actions_calling,
     Phase.PLAYING: Game._valid_actions_playing,
     Phase.KATTEN_EXCHANGE: Game._valid_actions_none,
-    Phase.VIP_FLIP: Game._valid_actions_none,
+    Phase.VIP_FLIP: Game._valid_actions_vip_flip,
     Phase.HALVE_TRUMP: Game._valid_actions_none,
     Phase.MARKER_PLACEMENT: Game._valid_actions_none,
     Phase.SCORING: Game._valid_actions_none,
