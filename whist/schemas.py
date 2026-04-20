@@ -85,6 +85,12 @@ class RulesetSchema(msgspec.Struct):
     vip_clubs_sans_bonus: bool
     bordlaegger_base_points: int
     ren_bordlaegger_base_points: int
+    variant: str = "esmakker"
+    classic_trump_source: str = "last_card"
+    classic_fixed_trump: str | None = None
+    bid_whist_kitty_size: int = 6
+    bid_whist_allow_no_trump: bool = True
+    bid_whist_min_bid: int = 4
 
 
 class SessionConfigSchema(msgspec.Struct):

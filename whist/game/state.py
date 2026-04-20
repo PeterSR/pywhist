@@ -138,6 +138,10 @@ class GameState:
     """
 
     players: tuple[Player, ...]
+    # Which rule variant the reducer should dispatch to. The string is the
+    # value of `ruleset.Variant`; kept as a plain str here to avoid a circular
+    # import between state.py and ruleset.py.
+    variant: str = "esmakker"
     dealer: Player | None = None
     bid_winner: Player | None = None
     hands: dict[Player, Deck] = field(default_factory=dict)
@@ -191,6 +195,7 @@ class GameState:
         """
         assert self.partners is not None
         return {
+            "variant": self.variant,
             "phase": self.phase.value,
             "trump": self.trump.code,
             "partner_ace": self.partner_ace.code,
@@ -248,6 +253,7 @@ class GameState:
 
         return cls(
             players=players,
+            variant=d.get("variant", "esmakker"),
             dealer=dealer,
             bid_winner=bid_winner,
             hands=hands,

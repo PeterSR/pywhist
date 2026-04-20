@@ -28,7 +28,7 @@ from .bids import BID_LADDER, BidModifier, Call, NoloBid, NumberBid, bid_rank
 from .partners import Partners, TeamID
 from .phase import Phase
 from .player import Player, create_default_players
-from .reducer import _perform_deal, apply
+from .reducer import apply, perform_deal
 from .ruleset import Ruleset
 from .state import GameState
 
@@ -71,8 +71,10 @@ class Game:
 
         turn = int(settings.get("turn", 0))
 
+        assert self.ruleset is not None
         return GameState(
             players=players,
+            variant=self.ruleset.variant,
             dealer=dealer,
             hands=hands,
             partners=partners,
@@ -82,10 +84,7 @@ class Game:
 
     def deal(self) -> None:
         assert self.state is not None
-        # The reducer's _perform_deal handles: rng shuffle, hand dealing,
-        # jernhaand detection, DealEvent + JernhaandOptionEvent emission, and
-        # the DEALING → BIDDING transition when no jernhaand pending.
-        new_state, events = _perform_deal(self.state, rng=self._rng)
+        new_state, events = perform_deal(self.state, rng=self._rng)
         self.state = new_state.replace(events=(*self.state.events, *events))
 
     @property

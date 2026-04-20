@@ -32,6 +32,8 @@ KattenExchangeMode = Literal["all_or_nothing", "freeform_0_to_3"]
 HalveExchanger = Literal["declarer", "partner"]
 FirstLead = Literal["forhand", "declarer"]
 NoloSettlement = Literal["solo_each", "vs_nonparticipating", "partners"]
+Variant = Literal["esmakker", "classic", "bid_whist"]
+ClassicTrumpSource = Literal["last_card", "fixed", "none"]
 
 
 DEFAULT_BID_MODIFIERS: frozenset[BidModifier] = frozenset(
@@ -63,10 +65,14 @@ class Ruleset:
     """Rule-of-play flags. One instance per `Match`.
 
     Defaults cover the canonical call-ace variant. Use `Ruleset.default()` for
-    the human preset and `Ruleset.ai_training()` for the RL-friendly preset.
+    the human preset, `Ruleset.classic()` for plain partnership whist, and
+    `Ruleset.bid_whist()` for American bid whist.
     """
 
-    # --- bidding ---
+    # --- variant selection ---
+    variant: Variant = "esmakker"
+
+    # --- bidding (esmakker) ---
     minimum_bid: int = 7
     bid_modifiers: frozenset[BidModifier] = field(default_factory=lambda: DEFAULT_BID_MODIFIERS)
     modifier_order: tuple[BidModifier, ...] = DEFAULT_MODIFIER_ORDER
@@ -93,6 +99,15 @@ class Ruleset:
     bordlaegger_base_points: int = 200
     ren_bordlaegger_base_points: int = 400
 
+    # --- classic whist ---
+    classic_trump_source: ClassicTrumpSource = "last_card"
+    classic_fixed_trump: str | None = None
+
+    # --- bid whist ---
+    bid_whist_kitty_size: int = 6
+    bid_whist_allow_no_trump: bool = True
+    bid_whist_min_bid: int = 4
+
     @classmethod
     def default(cls) -> Ruleset:
         """Canonical call-ace preset."""
@@ -108,8 +123,19 @@ class Ruleset:
         """
         return cls()
 
+    @classmethod
+    def classic(cls) -> Ruleset:
+        """Classic partnership whist — no bidding, fixed partners, last-card trump."""
+        return cls(variant="classic")
+
+    @classmethod
+    def bid_whist(cls) -> Ruleset:
+        """American bid whist — bidding for books, kitty exchange, fixed partnerships."""
+        return cls(variant="bid_whist")
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "variant": self.variant,
             "minimum_bid": self.minimum_bid,
             "bid_modifiers": sorted(m.value for m in self.bid_modifiers),
             "modifier_order": [m.value for m in self.modifier_order],
@@ -129,11 +155,17 @@ class Ruleset:
             "vip_clubs_sans_bonus": self.vip_clubs_sans_bonus,
             "bordlaegger_base_points": self.bordlaegger_base_points,
             "ren_bordlaegger_base_points": self.ren_bordlaegger_base_points,
+            "classic_trump_source": self.classic_trump_source,
+            "classic_fixed_trump": self.classic_fixed_trump,
+            "bid_whist_kitty_size": self.bid_whist_kitty_size,
+            "bid_whist_allow_no_trump": self.bid_whist_allow_no_trump,
+            "bid_whist_min_bid": self.bid_whist_min_bid,
         }
 
     @classmethod
     def from_dict(cls, d: Mapping[str, Any]) -> Ruleset:
         return cls(
+            variant=d.get("variant", "esmakker"),
             minimum_bid=int(d["minimum_bid"]),
             bid_modifiers=frozenset(BidModifier(v) for v in d["bid_modifiers"]),
             modifier_order=tuple(BidModifier(v) for v in d["modifier_order"]),
@@ -155,6 +187,11 @@ class Ruleset:
             vip_clubs_sans_bonus=bool(d["vip_clubs_sans_bonus"]),
             bordlaegger_base_points=int(d["bordlaegger_base_points"]),
             ren_bordlaegger_base_points=int(d["ren_bordlaegger_base_points"]),
+            classic_trump_source=d.get("classic_trump_source", "last_card"),
+            classic_fixed_trump=d.get("classic_fixed_trump"),
+            bid_whist_kitty_size=int(d.get("bid_whist_kitty_size", 6)),
+            bid_whist_allow_no_trump=bool(d.get("bid_whist_allow_no_trump", True)),
+            bid_whist_min_bid=int(d.get("bid_whist_min_bid", 4)),
         )
 
 
@@ -163,10 +200,12 @@ __all__ = [
     "DEFAULT_MODIFIER_ORDER",
     "DEFAULT_NOLO_LADDER",
     "BidModifier",
+    "ClassicTrumpSource",
     "FirstLead",
     "HalveExchanger",
     "KattenExchangeMode",
     "NoloContract",
     "NoloSettlement",
     "Ruleset",
+    "Variant",
 ]
