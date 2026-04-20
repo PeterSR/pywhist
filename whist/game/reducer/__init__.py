@@ -14,12 +14,13 @@ from ..actions import BaseAction
 from ..events import BaseEvent
 from ..phase import Phase
 from ..state import GameState
-from . import _classic, _esmakker
+from . import _bid_whist, _classic, _esmakker
 from ._base import PhaseHandler, _rng_slot
 
 _VARIANT_HANDLERS: dict[str, dict[Phase, PhaseHandler]] = {
     "esmakker": _esmakker.HANDLERS,
     "classic": _classic.HANDLERS,
+    "bid_whist": _bid_whist.HANDLERS,
 }
 
 
@@ -53,6 +54,8 @@ def perform_deal(state: GameState, *, rng: Random) -> tuple[GameState, tuple[Bas
         return _esmakker._perform_deal(state, rng=rng)
     if state.variant == "classic":
         return _classic._perform_deal(state, rng=rng)
+    if state.variant == "bid_whist":
+        return _bid_whist._perform_deal(state, rng=rng)
     raise IllegalPhase(f"Unknown variant: {state.variant!r}")
 
 

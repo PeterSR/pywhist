@@ -14,6 +14,7 @@ from .actions import (
     BanketSkipAction,
     BaseAction,
     BidAction,
+    BidWhistBidAction,
     CallAction,
     DetKanJegSelvAction,
     GaaMedAction,
@@ -131,6 +132,8 @@ class Game:
     def _valid_actions_bidding(self, player: Player) -> list[BaseAction]:
         assert self.state is not None
         state = self.state
+        if state.variant == "bid_whist":
+            return self._valid_actions_bid_whist_bidding(player)
         a = state.auction
 
         actions: list[BaseAction] = []
@@ -181,6 +184,18 @@ class Game:
             else:
                 out.append(BidAction(b, trump=None))
         return out
+
+    def _valid_actions_bid_whist_bidding(self, _player: Player) -> list[BaseAction]:
+        assert self.state is not None
+        a = self.state.bid_whist_auction
+        top = a.top_level or 0
+        actions: list[BaseAction] = [PassAction()]
+        # Levels 1..7, each with four trump suits + no-trump. Min bid = top + 1.
+        for level in range(top + 1, 8):
+            for trump in (Suit.Club, Suit.Diamond, Suit.Heart, Suit.Spade):
+                actions.append(BidWhistBidAction(level=level, trump=trump))
+            actions.append(BidWhistBidAction(level=level, trump=None))
+        return actions
 
     def _valid_actions_calling(self, player: Player) -> list[BaseAction]:
         assert self.state is not None

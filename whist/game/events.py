@@ -434,6 +434,55 @@ class KingCalledEvent(BaseEvent):
         )
 
 
+# ---- bid whist events ----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BidWhistBidMadeEvent(BaseEvent):
+    player: Player
+    level: int
+    trump: str | None  # suit code, or None for no-trump
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "bid_whist_bid_made",
+            "player": self.player.to_dict(),
+            "level": self.level,
+            "trump": self.trump,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> BidWhistBidMadeEvent:
+        return cls(
+            player=Player.from_dict(d["player"]),
+            level=int(d["level"]),
+            trump=d.get("trump"),
+        )
+
+
+@dataclass(frozen=True)
+class BidWhistBidWonEvent(BaseEvent):
+    winner: Player
+    level: int
+    trump: str | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "bid_whist_bid_won",
+            "winner": self.winner.to_dict(),
+            "level": self.level,
+            "trump": self.trump,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> BidWhistBidWonEvent:
+        return cls(
+            winner=Player.from_dict(d["winner"]),
+            level=int(d["level"]),
+            trump=d.get("trump"),
+        )
+
+
 # ---- dispatch ------------------------------------------------------------
 
 _EVENT_TAGS: dict[str, type[BaseEvent]] = {
@@ -458,6 +507,8 @@ _EVENT_TAGS: dict[str, type[BaseEvent]] = {
     "partner_revealed": PartnerRevealedEvent,
     "score": ScoreEvent,
     "capsize": CapsizeEvent,
+    "bid_whist_bid_made": BidWhistBidMadeEvent,
+    "bid_whist_bid_won": BidWhistBidWonEvent,
 }
 
 

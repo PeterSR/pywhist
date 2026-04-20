@@ -346,6 +346,34 @@ class MarkerSkipAction(BaseAction):
         return cls()
 
 
+# ---- bid whist actions ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BidWhistBidAction(BaseAction):
+    """Bid whist bid: a level (books above 6) + trump suit (or no-trump)."""
+
+    level: int
+    trump: Suit | None  # None → no-trump
+
+    def __str__(self) -> str:
+        trump_str = "NT" if self.trump is None else self.trump.symbol
+        return f"Bid {self.level} {trump_str}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": "bid_whist_bid",
+            "level": self.level,
+            "trump": self.trump.code if self.trump is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> BidWhistBidAction:
+        trump_raw = d.get("trump")
+        trump = Suit.from_code(trump_raw) if trump_raw is not None else None
+        return cls(level=int(d["level"]), trump=trump)
+
+
 # ---- dispatch -------------------------------------------------------------
 
 _ACTION_TAGS: dict[str, type[BaseAction]] = {
@@ -370,6 +398,7 @@ _ACTION_TAGS: dict[str, type[BaseAction]] = {
     "halve_trump": HalveTrumpChoiceAction,
     "marker": MarkerCardAction,
     "marker_skip": MarkerSkipAction,
+    "bid_whist_bid": BidWhistBidAction,
 }
 
 

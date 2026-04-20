@@ -85,6 +85,53 @@ class KattenState:
 
 
 @dataclass(frozen=True, slots=True)
+class BidWhistAuctionState:
+    """Running state of the bid-whist auction while `phase == Phase.BIDDING`.
+
+    Records each seat's bid or pass. `top_level` + `top_trump` describe the
+    current leading bid; `top_trump is None` means no-trump.
+    """
+
+    bids: tuple[tuple[Player, int, str | None], ...] = ()  # (player, level, trump_code_or_None)
+    passed: frozenset[Player] = frozenset()
+    current_bidder: Player | None = None
+    top_level: int | None = None
+    top_trump: str | None = None
+    top_bidder: Player | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "bids": [[p.to_dict(), level, trump] for p, level, trump in self.bids],
+            "passed": [p.to_dict() for p in self.passed],
+            "current_bidder": (
+                self.current_bidder.to_dict() if self.current_bidder is not None else None
+            ),
+            "top_level": self.top_level,
+            "top_trump": self.top_trump,
+            "top_bidder": self.top_bidder.to_dict() if self.top_bidder is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Mapping[str, Any]) -> BidWhistAuctionState:
+        return cls(
+            bids=tuple(
+                (Player.from_dict(entry[0]), int(entry[1]), entry[2]) for entry in d["bids"]
+            ),
+            passed=frozenset(Player.from_dict(p) for p in d["passed"]),
+            current_bidder=(
+                Player.from_dict(d["current_bidder"])
+                if d.get("current_bidder") is not None
+                else None
+            ),
+            top_level=int(d["top_level"]) if d.get("top_level") is not None else None,
+            top_trump=d.get("top_trump"),
+            top_bidder=(
+                Player.from_dict(d["top_bidder"]) if d.get("top_bidder") is not None else None
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class BanketState:
     """Banket / re-banket flags for the active contract."""
 
@@ -170,6 +217,8 @@ class GameState:
     discarded: tuple[Card, ...] = ()
     # Players whose hands are face-up (Bordlægger after trick 1 collection).
     hand_exposed: frozenset[Player] = frozenset()
+    # Bid-whist auction state. Populated only while `variant == "bid_whist"`.
+    bid_whist_auction: BidWhistAuctionState = field(default_factory=BidWhistAuctionState)
 
     @property
     def round(self) -> int:
@@ -220,6 +269,7 @@ class GameState:
             "marker_card": self.marker_card.to_dict() if self.marker_card is not None else None,
             "discarded": [c.to_dict() for c in self.discarded],
             "hand_exposed": [p.to_dict() for p in self.hand_exposed],
+            "bid_whist_auction": self.bid_whist_auction.to_dict(),
         }
 
     @classmethod
@@ -250,6 +300,11 @@ class GameState:
         marker_card = Card.from_dict(d["marker_card"]) if d.get("marker_card") else None
         discarded = tuple(Card.from_dict(c) for c in d.get("discarded", []))
         hand_exposed = frozenset(Player.from_dict(p) for p in d.get("hand_exposed", []))
+        bid_whist_auction = (
+            BidWhistAuctionState.from_dict(d["bid_whist_auction"])
+            if "bid_whist_auction" in d
+            else BidWhistAuctionState()
+        )
 
         return cls(
             players=players,
@@ -277,6 +332,7 @@ class GameState:
             marker_card=marker_card,
             discarded=discarded,
             hand_exposed=hand_exposed,
+            bid_whist_auction=bid_whist_auction,
         )
 
 
