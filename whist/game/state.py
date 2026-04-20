@@ -219,6 +219,12 @@ class GameState:
     hand_exposed: frozenset[Player] = frozenset()
     # Bid-whist auction state. Populated only while `variant == "bid_whist"`.
     bid_whist_auction: BidWhistAuctionState = field(default_factory=BidWhistAuctionState)
+    # Queue of remaining katten exchangers (after the current one). Populated
+    # for nolo contracts with gå-med players; empty for a single-exchanger
+    # katten. FIFO — head becomes the next exchanger after the current one
+    # finishes (skip or take+discard). Each exchanger sees the discards of
+    # the previous exchanger as their katten.
+    katten_cycle: tuple[Player, ...] = ()
 
     @property
     def round(self) -> int:
@@ -270,6 +276,7 @@ class GameState:
             "discarded": [c.to_dict() for c in self.discarded],
             "hand_exposed": [p.to_dict() for p in self.hand_exposed],
             "bid_whist_auction": self.bid_whist_auction.to_dict(),
+            "katten_cycle": [p.to_dict() for p in self.katten_cycle],
         }
 
     @classmethod
@@ -305,6 +312,7 @@ class GameState:
             if "bid_whist_auction" in d
             else BidWhistAuctionState()
         )
+        katten_cycle = tuple(Player.from_dict(p) for p in d.get("katten_cycle", []))
 
         return cls(
             players=players,
@@ -333,6 +341,7 @@ class GameState:
             discarded=discarded,
             hand_exposed=hand_exposed,
             bid_whist_auction=bid_whist_auction,
+            katten_cycle=katten_cycle,
         )
 
 

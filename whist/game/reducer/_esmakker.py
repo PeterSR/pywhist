@@ -806,6 +806,24 @@ def _katten_skip(state: GameState) -> tuple[GameState, tuple[BaseEvent, ...]]:
     exchanger = state.current_player
     action_event = ActionTakenEvent(exchanger, KattenExchangeSkipAction())
     exchanged_event = KattenExchangedEvent(exchanger, took_count=0, discards_count=0)
+
+    # Daisy-chain: if more exchangers remain in the cycle, pass the katten along
+    # unchanged (skip means the current cards carry over to the next player).
+    if state.katten_cycle:
+        next_player, *rest = state.katten_cycle
+        new_katten = KattenState(
+            cards=state.katten.cards,
+            flipped=state.katten.flipped,
+            holder=None,
+        )
+        new_state = state.replace(
+            katten=new_katten,
+            katten_cycle=tuple(rest),
+            turn=state.players.index(next_player),
+            events=(*state.events, action_event, exchanged_event),
+        )
+        return new_state, (action_event, exchanged_event)
+
     transition = PhaseTransitionEvent(from_phase=Phase.KATTEN_EXCHANGE, to_phase=Phase.PLAYING)
     new_state = state.replace(
         phase=Phase.PLAYING,
@@ -852,9 +870,28 @@ def _katten_discard(
     new_hands = dict(state.hands)
     new_hands[exchanger] = Deck(new_hand_cards)
 
-    new_discarded = (*state.discarded, *action.cards)
     action_event = ActionTakenEvent(exchanger, action)
     exchanged_event = KattenExchangedEvent(exchanger, took_count=3, discards_count=3)
+
+    # Daisy-chain: if more exchangers remain, the discards become the next
+    # player's katten instead of heading into the permanent `discarded` pile.
+    if state.katten_cycle:
+        next_player, *rest = state.katten_cycle
+        new_katten = KattenState(
+            cards=tuple(action.cards),
+            flipped=(False,) * len(action.cards),
+            holder=None,
+        )
+        new_state = state.replace(
+            hands=new_hands,
+            katten=new_katten,
+            katten_cycle=tuple(rest),
+            turn=state.players.index(next_player),
+            events=(*state.events, action_event, exchanged_event),
+        )
+        return new_state, (action_event, exchanged_event)
+
+    new_discarded = (*state.discarded, *action.cards)
     transition = PhaseTransitionEvent(from_phase=Phase.KATTEN_EXCHANGE, to_phase=Phase.PLAYING)
     new_state = state.replace(
         hands=new_hands,

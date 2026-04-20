@@ -273,6 +273,64 @@ def test_marker_place_emits_partner_revealed_when_partner_exists() -> None:
     assert any(isinstance(e, PartnerRevealedEvent) for e in events)
 
 
+def test_katten_daisy_chain_skip_passes_same_cards() -> None:
+    """Nolo katten cycle: skip passes the same katten cards to the next in line."""
+    game = Game(seed=300)
+    game.deal()
+    p0, p1, p2, _p3 = game.state.players
+    # Rig a cycle: current is p0, next is p1 (who then skips to p2).
+    cards = tuple(game.state.kitty.cards) if game.state.kitty else (Card.joker, Card.joker)
+    game.state = game.state.replace(
+        phase=Phase.KATTEN_EXCHANGE,
+        katten=KattenState(cards=cards, flipped=(False,) * len(cards)),
+        katten_cycle=(p1, p2),
+        turn=game.state.players.index(p0),
+    )
+
+    s1, _ = apply(game.state, KattenExchangeSkipAction())
+    assert s1.phase == Phase.KATTEN_EXCHANGE
+    assert s1.katten.cards == cards  # cards unchanged on skip
+    assert s1.current_player == p1
+    assert s1.katten_cycle == (p2,)
+
+    s2, _ = apply(s1, KattenExchangeSkipAction())
+    assert s2.phase == Phase.KATTEN_EXCHANGE
+    assert s2.current_player == p2
+    assert s2.katten_cycle == ()
+
+    s3, _ = apply(s2, KattenExchangeSkipAction())
+    assert s3.phase == Phase.PLAYING
+
+
+def test_katten_daisy_chain_take_passes_discards() -> None:
+    """Nolo katten cycle: take+discard sends the discards on as the next katten."""
+    game = Game(seed=301)
+    game.deal()
+    p0, p1, _p2, _p3 = game.state.players
+    # Three initial katten cards.
+    kitty_cards = tuple(game.state.kitty.cards) if game.state.kitty else ()
+    assert len(kitty_cards) >= 3
+    cards = kitty_cards[:3]
+    game.state = game.state.replace(
+        phase=Phase.KATTEN_EXCHANGE,
+        katten=KattenState(cards=cards, flipped=(False, False, False)),
+        katten_cycle=(p1,),
+        turn=game.state.players.index(p0),
+    )
+
+    after_take, _ = apply(game.state, KattenExchangeTakeAction())
+    discards = tuple(after_take.hands[p0].cards[-3:])
+    after_discard, _ = apply(after_take, KattenDiscardAction(cards=discards))
+
+    # Cycle advanced, and the next player's katten is p0's discards.
+    assert after_discard.phase == Phase.KATTEN_EXCHANGE
+    assert after_discard.current_player == p1
+    assert after_discard.katten.cards == discards
+    assert after_discard.katten_cycle == ()
+    # Discarded pile is untouched — the cards are still in play via the cycle.
+    assert after_discard.discarded == ()
+
+
 def test_marker_place_selvmakker_own_hand_skips_partner_reveal() -> None:
     """Declarer holds the partner-ace themselves (selvmakker-via-own-hand):
     marker placement should NOT emit PartnerRevealedEvent(declarer, declarer).
