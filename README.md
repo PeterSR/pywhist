@@ -1,10 +1,13 @@
 # pywhist
 
-A Python library for **Danish Esmakker Whist** (also known as *Call-ace Whist*) — rules engine, scoring, and an AI-friendly state-view model.
+A Python library for 4-player partnership **whist** — classic whist, Danish Esmakker (*call-ace* whist), and American bid whist. Rules engine, scoring, and an AI-friendly state-view model, in one package.
 
 ## Features
 
-- **Complete rules engine** for the 4-player call-ace variant: full auction ladder (almindelig / gode / halve / vip / sans, plus nolo contracts), banket, jernhånd redeals, all-4-aces king call, katten exchange, vip flips, halve-trump selection, and marker-card placement.
+- **Three variants under one API:**
+  - **Classic whist** — fixed partnerships, no bidding, trump from the last card dealt, tricks-above-six scoring.
+  - **Esmakker (call-ace) whist** — full auction ladder (almindelig / gode / halve / vip / sans, plus nolo contracts), banket, jernhånd redeals, all-4-aces king call, katten exchange, vip flips, halve-trump selection, and marker-card placement.
+  - **Bid whist** — level+trump / no-trump auction, made-vs-set scoring, fixed N-S / E-W partnerships.
 - **Pure reducer** — `apply(state, action) -> (new_state, events)` is a deterministic function of a seeded RNG. Any hand is reconstructible from `(seed, action_sequence)`.
 - **Frozen state + event log** — `GameState` is immutable (`@dataclass(frozen=True, slots=True)`); every state transition emits a typed event, so observers and replay tools never have to diff states.
 - **Per-player redacted views** — `GameStateView` hides information the given seat isn't entitled to (other hands, undisclosed partners, undealt cards), ready to ship to clients.
@@ -34,8 +37,10 @@ Drive a hand end-to-end using the mutating `Game` wrapper:
 
 ```python
 from whist.game import Game
+from whist.game.ruleset import Ruleset
 
-game = Game(seed=0)
+# Default is Esmakker; use Ruleset.classic() or Ruleset.bid_whist() for the others.
+game = Game(seed=0, ruleset=Ruleset.classic())
 game.deal()
 
 while not game.has_ended:
@@ -48,7 +53,7 @@ while not game.has_ended:
 print(game.get_scoreboard())
 ```
 
-The pure reducer lives in `whist.game.reducer.apply(state, action, *, rng)` — it takes a frozen `GameState` and an `Action` and returns `(new_state, events)`. Search, replay, and batched self-play can skip the `Game` wrapper and call it directly.
+The pure reducer lives in `whist.game.reducer.apply(state, action, *, rng)` — it takes a frozen `GameState` and an `Action` and returns `(new_state, events)`. Dispatch is variant-aware (classic / Esmakker / bid whist), so search, replay, and batched self-play can skip the `Game` wrapper and call it directly.
 
 Run a single auto-played hand from the terminal:
 
